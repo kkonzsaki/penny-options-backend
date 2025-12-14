@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from datetime import date
-from app.scanner import get_penny_candidates
+from app.scanner import get_penny_candidates, get_options_chain
+import yfinance as yf
 
 app = FastAPI()
 
@@ -19,11 +20,15 @@ def candidates(horizon: str = "day", limit: int = 10):
 
 @app.get("/api/v1/symbol/{ticker}")
 def symbol(ticker: str):
+    ticker = ticker.upper()
     stock = yf.Ticker(ticker)
     info = stock.info
     price = info.get("regularMarketPrice")
+
+    options = get_options_chain(ticker)
+
     return {
-        "symbol": ticker.upper(),
+        "symbol": ticker,
         "price": price,
-        "options": []  # Placeholder, can add option chain later
+        "options": options
     }
