@@ -1,14 +1,13 @@
 import yfinance as yf
 import pandas as pd
+from datetime import date
 import numpy as np
 
-# Example penny stock list (replace or expand)
-PENNY_STOCKS = [
-    "SINT", "VSTM", "SPCE", "XELA", "FNMA"
-]
+# Example penny stock list (replace with real list)
+PENNY_STOCKS = ["SINT", "VSTM", "SPCE", "XELA", "FNMA"]
 
 def calculate_score(price, volume, iv):
-    """Simple scoring function for demonstration"""
+    """Simple scoring function"""
     score = 0
     if volume > 500_000:
         score += 40
@@ -27,10 +26,9 @@ def get_penny_candidates(limit=10):
             info = stock.info
             price = info.get("regularMarketPrice")
             volume = info.get("volume", 0)
-            if price is None or price > 5:  # only pennies
+            if price is None or price > 5:
                 continue
 
-            # Simple placeholder IV calculation
             iv = info.get("impliedVolatility", 0.0)
             score = calculate_score(price, volume, iv)
 
@@ -45,6 +43,30 @@ def get_penny_candidates(limit=10):
         except Exception as e:
             print(f"Error fetching {ticker}: {e}")
 
-    # Sort by score descending
     results = sorted(results, key=lambda x: x["score"], reverse=True)
     return results[:limit]
+
+
+def get_options_chain(ticker):
+    """Return full options chain (calls + puts) for a ticker"""
+    try:
+        stock = yf.Ticker(ticker)
+        expirations = stock.options  # list of expiration dates
+        options_data = []
+
+        for exp in expirations:
+            chain = stock.option_chain(exp)
+            for option_type, df in [("call", chain.calls), ("put", chain.puts)]:
+                for _, row in df.iterrows():
+                    options_data.append({
+                        "expiration": exp,
+                        "strike": row["strike"],
+                        "type": option_type,
+                        "oi": row.get("openInterest", 0),
+                        "volume": row.get("volume", 0),
+                        "iv": round(row.get("impliedVolatility", 0.0), 2)
+                    })
+        return options_data
+    except Exception as e:
+        print(f"Error fetching options for {ticker}: {e}")
+        return []
