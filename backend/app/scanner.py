@@ -95,13 +95,20 @@ def get_options_chain(ticker: str) -> Dict[str, Any]:
 
     try:
         stock = yf.Ticker(ticker)
-        expirations = stock.options
 
+        # 🔑 Force Yahoo session initialization
+        _ = stock.history(period="1d")
+
+        expirations = stock.options
         if not expirations:
-            return {"error": "No options available for this ticker"}
+            return {"error": f"No options available for {ticker}"}
 
         expiration = expirations[0]
-        chain = stock.option_chain(expiration)
+
+        try:
+            chain = stock.option_chain(expiration)
+        except Exception:
+            return {"error": "Options data temporarily unavailable. Please retry."}
 
         calls = chain.calls
         puts = chain.puts
@@ -109,7 +116,7 @@ def get_options_chain(ticker: str) -> Dict[str, Any]:
         def simplify(df: pd.DataFrame):
             return [
                 {
-                    "strike": safe_float(row.get("strike")),
+                    "strike": float(row["strike"]),
                     "lastPrice": safe_float(row.get("lastPrice")),
                     "bid": safe_float(row.get("bid")),
                     "ask": safe_float(row.get("ask")),
@@ -126,8 +133,11 @@ def get_options_chain(ticker: str) -> Dict[str, Any]:
             "symbol": ticker,
             "expiration": expiration,
             "calls": simplify(calls),
-            "puts": simplify(puts)
+            "puts": simplify(puts),
         }
 
-    except Exception:
-        return {"error": "Failed to fetch option chain"}
+    except Exception as e:
+        return {
+            "error": "Failed to fetch option chain",
+            "details": str(e)
+        }
