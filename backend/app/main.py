@@ -1,6 +1,6 @@
 # main.py
 from fastapi import FastAPI
-from scanner import get_penny_candidates, get_options_chain  # import functions from scanner.py
+from app.scanner import get_penny_candidates, get_options_chain  # import functions from scanner.py
 
 app = FastAPI(title="Penny Options Scout API", version="1.0")
 
