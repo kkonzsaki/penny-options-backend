@@ -4,31 +4,35 @@ import yfinance as yf
 
 def get_penny_candidates(limit=10):
     """
-    Returns a list of penny stock tickers.
-    Placeholder logic: replace with your real data source.
+    Returns a sample list of penny stock tickers.
+    Replace with your real penny stock data source.
     """
-    tickers = ["SINT", "XYZ", "ABC"]  # example penny stock tickers
-    return tickers[:limit]
+    penny_stocks = ["SINT", "XYZ", "ABC", "DEF", "GHI", "JKL"]
+    return penny_stocks[:limit]
 
 def get_options_chain(ticker: str):
     """
-    Fetches the options chain for ANY ticker.
-    Returns a dictionary with calls and puts for each expiry date.
+    Returns the options chain for a given ticker.
+    Handles stocks with no options gracefully.
     """
     try:
         stock = yf.Ticker(ticker)
-        if not stock.options:
-            return {"error": f"No options available for {ticker}"}
 
-        all_options = {}
-        for date in stock.options:
-            opt = stock.option_chain(date)
-            all_options[date] = {
-                "calls": opt.calls.fillna("").to_dict(orient="records"),
-                "puts": opt.puts.fillna("").to_dict(orient="records")
+        # Check if there are any options
+        if not stock.options:
+            return {"ticker": ticker, "error": "No options available for this ticker"}
+
+        # Build the options dictionary
+        options_data = {}
+        for expiry in stock.options:
+            chain = stock.option_chain(expiry)
+            options_data[expiry] = {
+                "calls": chain.calls.fillna("").to_dict(orient="records"),
+                "puts": chain.puts.fillna("").to_dict(orient="records"),
             }
 
-        return {"ticker": ticker, "options": all_options}
+        return {"ticker": ticker, "options": options_data}
 
     except Exception as e:
-        return {"error": str(e), "ticker": ticker}
+        # Catch all errors to prevent internal server error
+        return {"ticker": ticker, "error": str(e)}
