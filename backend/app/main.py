@@ -1,11 +1,12 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from scanner import (
+from .scanner import (
     get_penny_candidates,
     get_options_chain,
     get_ranked_options
 )
+
 
 app = FastAPI(
     title="Penny Options Scout API",
