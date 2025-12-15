@@ -1,32 +1,32 @@
-# scanner.py
+# backend/app/scanner.py
 
 import yfinance as yf
-import pandas as pd
 
 def get_penny_candidates(limit=10):
     """
-    Keep your penny stock logic here if you still want it.
     Returns a list of penny stock tickers.
+    Placeholder logic: replace with your real data source.
     """
-    # Example placeholder logic:
-    # Fetch a bunch of tickers and filter by price < $5
-    tickers = ["SINT", "XYZ", "ABC"]  # Replace with your actual source
+    tickers = ["SINT", "XYZ", "ABC"]  # example penny stock tickers
     return tickers[:limit]
 
 def get_options_chain(ticker: str):
     """
-    Fetches the full options chain for ANY ticker.
+    Fetches the options chain for ANY ticker.
+    Returns a dictionary with calls and puts for each expiry date.
     """
     try:
         stock = yf.Ticker(ticker)
-        options_dates = stock.options
-        all_options = {}
+        if not stock.options:
+            return {"error": f"No options available for {ticker}"}
 
-        for date in options_dates:
+        all_options = {}
+        for date in stock.options:
             opt = stock.option_chain(date)
-            calls = opt.calls.to_dict(orient="records")
-            puts = opt.puts.to_dict(orient="records")
-            all_options[date] = {"calls": calls, "puts": puts}
+            all_options[date] = {
+                "calls": opt.calls.fillna("").to_dict(orient="records"),
+                "puts": opt.puts.fillna("").to_dict(orient="records")
+            }
 
         return {"ticker": ticker, "options": all_options}
 
