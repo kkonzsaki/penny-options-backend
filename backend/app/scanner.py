@@ -1,10 +1,15 @@
 import yfinance as yf
 import pandas as pd
-from datetime import date
 
-PENNY_STOCKS = ["SINT", "VSTM", "SPCE", "XELA", "FNMA"]  # your penny list
+# List of penny stocks to scan
+PENNY_STOCKS = [
+    "SINT", "VSTM", "SPCE", "XELA", "FNMA"  # replace/add more as needed
+]
 
 def calculate_score(price, volume, iv):
+    """
+    Calculate a simple score for a penny stock based on price, volume, and implied volatility.
+    """
     score = 0
     if volume > 500_000:
         score += 40
@@ -15,7 +20,10 @@ def calculate_score(price, volume, iv):
     return score
 
 def get_options_chain(ticker):
-    """Return full options chain safely"""
+    """
+    Safely fetch full options chain (calls + puts) for a ticker.
+    Returns a list of option dicts with expiration, strike, type, OI, volume, IV.
+    """
     try:
         stock = yf.Ticker(ticker)
         expirations = stock.options or []
@@ -35,15 +43,20 @@ def get_options_chain(ticker):
                                 "volume": row.get("volume", 0),
                                 "iv": round(row.get("impliedVolatility", 0.0), 2)
                             })
-            except Exception as e:
-                print(f"Error fetching chain for {ticker} {exp}: {e}")
+            except Exception:
+                # Skip this expiration if something goes wrong
+                continue
 
         return options_data
-    except Exception as e:
-        print(f"Error fetching options for {ticker}: {e}")
+    except Exception:
+        # Return empty if ticker cannot be fetched
         return []
 
 def get_penny_candidates(limit=10):
+    """
+    Safely fetch penny stocks with tradable options.
+    Returns a list of dicts with symbol, price, volume, iv, score, and empty signals.
+    """
     results = []
 
     for ticker in PENNY_STOCKS:
@@ -54,7 +67,6 @@ def get_penny_candidates(limit=10):
             if price is None or price > 5:
                 continue
 
-            # Only include if options exist
             options = get_options_chain(ticker)
             if not options:
                 continue
@@ -71,9 +83,10 @@ def get_penny_candidates(limit=10):
                 "score": round(score, 2),
                 "signals": []
             })
+        except Exception:
+            # Skip this ticker if any error occurs
+            continue
 
-        except Exception as e:
-            print(f"Error fetching {ticker}: {e}")
-
+    # Sort by score descending and return top `limit` results
     results = sorted(results, key=lambda x: x["score"], reverse=True)
     return results[:limit]
