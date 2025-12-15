@@ -1,24 +1,21 @@
 # main.py
 from fastapi import FastAPI
-from app.scanner import get_penny_candidates, get_options_chain  # import functions from scanner.py
+from scanner import get_penny_candidates, get_options_chain
 
-app = FastAPI(title="Penny Options Scout API", version="1.0")
+app = FastAPI()
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 @app.get("/api/v1/candidates")
 def candidates(limit: int = 10):
-    """
-    Return a list of penny stock tickers.
-    You can specify the limit via query parameter, e.g., ?limit=5
-    """
     return get_penny_candidates(limit=limit)
 
 @app.get("/api/v1/symbol/{ticker}")
 def symbol(ticker: str):
-    """
-    Return the options chain for a given ticker.
-    Example: /api/v1/symbol/AAPL
-    """
     return get_options_chain(ticker)
+
 
 if __name__ == "__main__":
     import uvicorn
