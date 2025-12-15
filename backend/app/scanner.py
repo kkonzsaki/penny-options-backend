@@ -41,7 +41,12 @@ def get_penny_candidates(limit: int = 10):
     return results[:limit]
 
 
-def get_options_chain(ticker: str):
+def get_options_chain(
+    ticker: str,
+    expiry: str | None = None,
+    min_oi: int = 0,
+    max_strike_pct: int = 30
+):
     try:
         stock = yf.Ticker(ticker.upper())
         expirations = stock.options
@@ -49,26 +54,41 @@ def get_options_chain(ticker: str):
         if not expirations:
             return {
                 "symbol": ticker.upper(),
-                "error": "No options available for this symbol"
+                "error": "No options available"
             }
 
-        expiration = expirations[0]
-        chain = stock.option_chain(expiration)
+        # Pick expiration
+        selected_expiry = expiry if expiry in expirations else expirations[0]
+        chain = stock.option_chain(selected_expiry)
 
-        if chain.calls.empty and chain.puts.empty:
+        price = stock.fast_info.get("lastPrice")
+        if not price:
             return {
                 "symbol": ticker.upper(),
-                "error": "Options chain empty"
+                "error": "Unable to fetch stock price"
             }
 
-        calls = _clean_df(chain.calls.head(10))
-        puts = _clean_df(chain.puts.head(10))
+        max_strike = price * (1 + max_strike_pct / 100)
+        min_strike = price * (1 - max_strike_pct / 100)
+
+        def filter_chain(df):
+            df = df.replace([np.nan, np.inf, -np.inf], 0)
+            df = df[
+                (df["strike"] >= min_strike) &
+                (df["strike"] <= max_strike) &
+                (df["openInterest"] >= min_oi)
+            ]
+            for col in df.columns:
+                if pd.api.types.is_numeric_dtype(df[col]):
+                    df[col] = df[col].astype(float)
+            return df.to_dict(orient="records")
 
         return {
             "symbol": ticker.upper(),
-            "expiration": expiration,
-            "calls": calls,
-            "puts": puts
+            "price": round(float(price), 2),
+            "expiration": selected_expiry,
+            "calls": filter_chain(chain.calls),
+            "puts": filter_chain(chain.puts)
         }
 
     except Exception as e:
