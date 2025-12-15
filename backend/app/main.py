@@ -12,5 +12,16 @@ def candidates(limit: int = 10):
     return get_penny_candidates(limit)
 
 @app.get("/api/v1/symbol/{ticker}")
-def symbol(ticker: str):
-    return get_options_chain(ticker)
+def symbol(
+    ticker: str,
+    expiry: str | None = None,
+    min_oi: int = 0,
+    max_strike_pct: int = 30
+):
+    return get_options_chain(
+        ticker=ticker,
+        expiry=expiry,
+        min_oi=min_oi,
+        max_strike_pct=max_strike_pct
+    )
+
