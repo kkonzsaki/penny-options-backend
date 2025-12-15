@@ -32,3 +32,31 @@ def symbol(ticker: str):
         "price": price,
         "options": options
     }
+from fastapi.responses import JSONResponse
+
+@app.get("/debug/test-ticker/{ticker}")
+def debug_ticker(ticker: str):
+    import yfinance as yf
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        expirations = stock.options or []
+
+        options_preview = []
+        if expirations:
+            exp = expirations[0]
+            chain = stock.option_chain(exp)
+            options_preview = {
+                "calls": chain.calls.head(3).to_dict(orient="records"),
+                "puts": chain.puts.head(3).to_dict(orient="records")
+            }
+
+        return JSONResponse({
+            "info": info,
+            "expirations": expirations,
+            "options_preview": options_preview
+        })
+    except Exception as e:
+        return JSONResponse({
+            "error": str(e)
+        })
