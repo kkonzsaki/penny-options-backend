@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from scanner import get_penny_candidates, get_options_chain  # import functions from scanner.py
+from .scanner import get_penny_candidates, get_options_chain # import functions from scanner.py
 
 app = FastAPI()
 
