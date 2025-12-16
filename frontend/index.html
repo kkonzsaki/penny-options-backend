@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Options Scanner</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 2rem;
+    }
+    button {
+      margin: 0.25rem 0;
+    }
+    pre {
+      background: #111;
+      color: #0f0;
+      padding: 1rem;
+      max-height: 500px;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Options Scanner</h1>
+
+  <button onclick="checkHealth()">Health Check</button><br>
+  <button onclick="loadCandidates()">Load Penny Candidates</button><br><br>
+
+  <input id="symbol" placeholder="AAPL" />
+  <button onclick="loadSymbol()">Load Options Chain</button>
+
+  <pre id="output">Ready.</pre>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
