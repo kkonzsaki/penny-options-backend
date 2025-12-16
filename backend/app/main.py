@@ -2,8 +2,8 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
 
-# IMPORTANT: absolute import
-from scanner import (
+# ✅ RELATIVE IMPORT (this is the fix)
+from .scanner import (
     get_penny_candidates,
     get_options_chain,
 )
