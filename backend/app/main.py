@@ -1,72 +1,91 @@
-from fastapi import FastAPI, Query
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from datetime import datetime, timezone
 
-from .scanner import (
+# IMPORTANT: absolute import
+from scanner import (
     get_penny_candidates,
     get_options_chain,
-    get_ranked_options
 )
-
 
 app = FastAPI(
-    title="Penny Options Scout API",
-    version="1.0.0"
+    title="Options Scanner API",
+    version="1.0",
 )
 
-# ---------------------------------------------------------
-# CORS (safe defaults)
-# ---------------------------------------------------------
+API_VERSION = "1.0"
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
-# ---------------------------------------------------------
-# Health check
-# ---------------------------------------------------------
+# -------------------------
+# Helper response builders
+# -------------------------
+
+def success(data):
+    return {
+        "status": "ok",
+        "version": API_VERSION,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "data": data,
+    }
+
+
+def error(code: str, message: str, http_status: int = 400):
+    return JSONResponse(
+        status_code=http_status,
+        content={
+            "status": "error",
+            "version": API_VERSION,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "code": code,
+            "message": message,
+        },
+    )
+
+
+# -------------------------
+# Health Check
+# -------------------------
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return success({"service": "ok"})
 
-# ---------------------------------------------------------
-# Penny stock candidates
-# ---------------------------------------------------------
+
+# -------------------------
+# Penny Stock Candidates
+# -------------------------
 
 @app.get("/api/v1/candidates")
-def candidates(limit: int = Query(10, ge=1, le=50)):
-    return get_penny_candidates(limit=limit)
+def candidates():
+    try:
+        results = get_penny_candidates()
+        return success(results)
+    except Exception as e:
+        return error(
+            code="CANDIDATES_FAILED",
+            message=str(e),
+            http_status=500,
+        )
 
-# ---------------------------------------------------------
-# Raw options chain
-# ---------------------------------------------------------
 
-@app.get("/api/v1/symbol/{ticker}")
-def symbol(
-    ticker: str,
-    min_oi: int = Query(0, ge=0)
-):
-    return get_options_chain(
-        ticker=ticker.upper(),
-        min_oi=min_oi
-    )
+# -------------------------
+# Options Chain by Symbol
+# -------------------------
 
-# ---------------------------------------------------------
-# Ranked options (STEP 4.3)
-# ---------------------------------------------------------
-
-@app.get("/api/v1/ranked/{ticker}")
-def ranked_options(
-    ticker: str,
-    limit: int = Query(10, ge=1, le=50),
-    min_oi: int = Query(100, ge=0)
-):
-    return get_ranked_options(
-        ticker=ticker.upper(),
-        limit=limit,
-        min_oi=min_oi
-    )
+@app.get("/api/v1/symbol/{symbol}")
+def symbol(symbol: str):
+    try:
+        chain = get_options_chain(symbol.upper())
+        return success(chain)
+    except ValueError as e:
+        return error(
+            code="INVALID_SYMBOL",
+            message=str(e),
+            http_status=404,
+        )
+    except Exception as e:
+        return error(
+            code="OPTION_CHAIN_FAILED",
+            message=str(e),
+            http_status=500,
+        )
