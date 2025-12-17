@@ -1,7 +1,5 @@
-// app.js
 console.log("Frontend loaded");
 
-// Ensure DOM is ready before running
 document.addEventListener("DOMContentLoaded", () => {
 
   const symbolInput = document.getElementById("symbolInput");
@@ -13,8 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  // Fetch penny candidates
-  window.fetchCandidates = async function () {
+  window.fetchCandidates = async () => {
     candidatesOutput.textContent = "Loading candidates...";
 
     try {
@@ -27,8 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // Fetch options chain for a symbol
-  window.fetchSymbol = async function () {
+  window.fetchSymbol = async () => {
     const symbol = symbolInput.value.trim().toUpperCase();
 
     if (!symbol) {
