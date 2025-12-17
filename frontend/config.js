@@ -5,7 +5,10 @@
 
 const CONFIG = {
   // 🔗 Render backend service URL (NO trailing slash)
- const API_BASE_URL = "https://penny-options-backend.onrender.com";
+// config.js
+const API_BASE_URL = "https:///penny-options-backend.onrender.com";
+
+console.log("Config loaded:", API_BASE_URL);
 
 
   // ⏱ Request timeout (ms)
