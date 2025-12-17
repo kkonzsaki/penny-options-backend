@@ -1,43 +1,44 @@
-import { API_BASE_URL } from "./config.js";
+// app.js
 
-const output = document.getElementById("output");
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("Frontend loaded");
 
-function render(data) {
-  output.textContent = JSON.stringify(data, null, 2);
-}
+  const fetchBtn = document.getElementById("fetchBtn");
+  const tickerInput = document.getElementById("tickerInput");
+  const output = document.getElementById("output");
 
-// -------------------------
-// Health Check
-// -------------------------
-async function checkHealth() {
-  const res = await fetch(`${API_BASE_URL}/health`);
-  render(await res.json());
-}
+  if (!fetchBtn || !tickerInput || !output) {
+    console.error("Required DOM elements not found");
+    return;
+  }
 
-// -------------------------
-// Penny Candidates
-// -------------------------
-async function loadCandidates() {
-  const res = await fetch(`${API_BASE_URL}/api/v1/candidates`);
-  render(await res.json());
-}
+  fetchBtn.addEventListener("click", async () => {
+    const ticker = tickerInput.value.trim().toUpperCase();
 
-// -------------------------
-// Options Chain
-// -------------------------
-async function loadSymbol() {
-  const symbol = document.getElementById("symbol").value.trim();
-  if (!symbol) return alert("Enter a symbol");
+    if (!ticker) {
+      output.textContent = "Please enter a ticker symbol.";
+      return;
+    }
 
-  const res = await fetch(
-    `${API_BASE_URL}/api/v1/symbol/${symbol}`
-  );
-  render(await res.json());
-}
+    output.textContent = "Fetching option chain...";
 
-// -------------------------
-// Button Wiring
-// -------------------------
-window.checkHealth = checkHealth;
-window.loadCandidates = loadCandidates;
-window.loadSymbol = loadSymbol;
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/symbol/${ticker}`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        output.textContent =
+          data.error || "Failed to fetch option chain.";
+        return;
+      }
+
+      output.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+    } catch (error) {
+      console.error("Fetch error:", error);
+      output.textContent = "Error connecting to backend.";
+    }
+  });
+});
