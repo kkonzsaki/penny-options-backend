@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8" />
   <title>Penny Options Scout</title>
-
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <style>
@@ -42,6 +41,7 @@
       padding: 15px;
       border-radius: 6px;
       overflow-x: auto;
+      white-space: pre-wrap;
     }
   </style>
 </head>
@@ -53,26 +53,20 @@
   <!-- 🔍 SYMBOL LOOKUP -->
   <div class="section">
     <h2>Options Chain Lookup</h2>
-    <input id="symbolInput" placeholder="AAPL" />
-    <button onclick="fetchSymbol()">Fetch</button>
+    <input id="tickerInput" placeholder="AAPL" />
+    <button id="fetchSymbolBtn">Fetch</button>
     <pre id="symbolOutput"></pre>
   </div>
 
   <!-- 📋 CANDIDATES -->
   <div class="section">
     <h2>Penny Candidates</h2>
-    <button onclick="fetchCandidates()">Load Candidates</button>
+    <button id="fetchCandidatesBtn">Load Candidates</button>
     <pre id="candidatesOutput"></pre>
   </div>
 
-  <!-- ============================= -->
-  <!-- 🚨 SCRIPTS GO HERE (BOTTOM) 🚨 -->
-  <!-- ============================= -->
-
-  <!-- Config MUST load first -->
+  <!-- Scripts MUST load last -->
   <script src="config.js"></script>
-
-  <!-- App logic -->
   <script src="app.js"></script>
 
 </body>
