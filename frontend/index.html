@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Penny Options Scout</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #38bdf8;
+    }
+
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      margin-right: 5px;
+    }
+
+    button {
+      cursor: pointer;
+      background: #38bdf8;
+      border: none;
+      color: #020617;
+      font-weight: bold;
+    }
+
+    .section {
+      margin-top: 30px;
+    }
+
+    pre {
+      background: #020617;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Penny Options Scout</h1>
+
+  <!-- 🔍 SYMBOL LOOKUP -->
+  <div class="section">
+    <h2>Options Chain Lookup</h2>
+    <input id="tickerInput" placeholder="AAPL" />
+    <button id="fetchSymbolBtn">Fetch</button>
+    <pre id="symbolOutput"></pre>
+  </div>
+
+  <!-- 📋 CANDIDATES -->
+  <div class="section">
+    <h2>Penny Candidates</h2>
+    <button id="fetchCandidatesBtn">Load Candidates</button>
+    <pre id="candidatesOutput"></pre>
+  </div>
+
+  <!-- Scripts MUST load last -->
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
