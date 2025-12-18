@@ -1,37 +1,47 @@
+// app.js
 console.log("Frontend loaded");
 
-document.addEventListener("DOMContentLoaded", () => {
-  const symbolInput = document.getElementById("symbolInput");
-  const symbolBtn = document.getElementById("symbolBtn");
-  const symbolOutput = document.getElementById("symbolOutput");
+async function fetchCandidates() {
+  const output = document.getElementById("candidatesOutput");
+  output.textContent = "Loading candidates...";
 
-  const candidatesBtn = document.getElementById("candidatesBtn");
-  const candidatesOutput = document.getElementById("candidatesOutput");
+  try {
+    const res = await fetch(`${window.API_BASE_URL}/api/v1/candidates`);
+    if (!res.ok) throw new Error("Backend error");
 
-  symbolBtn.addEventListener("click", async () => {
-    const ticker = symbolInput.value.trim();
-    if (!ticker) return;
+    const data = await res.json();
+    output.textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    output.textContent = "Error fetching candidates";
+    console.error(err);
+  }
+}
 
-    symbolOutput.textContent = "Loading...";
+async function fetchSymbol() {
+  const symbol = document.getElementById("symbolInput").value.trim();
+  const output = document.getElementById("symbolOutput");
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/symbol/${ticker}`);
-      const data = await res.json();
-      symbolOutput.textContent = JSON.stringify(data, null, 2);
-    } catch (err) {
-      symbolOutput.textContent = "Error fetching symbol data";
-    }
-  });
+  if (!symbol) {
+    output.textContent = "Enter a symbol";
+    return;
+  }
 
-  candidatesBtn.addEventListener("click", async () => {
-    candidatesOutput.textContent = "Loading...";
+  output.textContent = "Loading option chain...";
 
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/candidates`);
-      const data = await res.json();
-      candidatesOutput.textContent = JSON.stringify(data, null, 2);
-    } catch (err) {
-      candidatesOutput.textContent = "Error fetching candidates";
-    }
-  });
-});
+  try {
+    const res = await fetch(
+      `${window.API_BASE_URL}/api/v1/symbol/${symbol}`
+    );
+    if (!res.ok) throw new Error("Backend error");
+
+    const data = await res.json();
+    output.textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    output.textContent = "Error fetching option chain";
+    console.error(err);
+  }
+}
+
+// Expose to HTML buttons
+window.fetchCandidates = fetchCandidates;
+window.fetchSymbol = fetchSymbol;
