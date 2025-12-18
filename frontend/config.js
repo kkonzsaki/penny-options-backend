@@ -1,4 +1,1 @@
-const API_BASE_URL = "https://penny-options-backend.onrender.com";
-
-console.log("Config loaded:", API_BASE_URL);
-
+const API_BASE_URL = "https://penny-option-backend.onrender.com";
