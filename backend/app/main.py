@@ -1,91 +1,27 @@
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-from datetime import datetime, timezone
+from fastapi.middleware.cors import CORSMiddleware
 
-# ✅ RELATIVE IMPORT (this is the fix)
-from .scanner import (
-    get_penny_candidates,
-    get_options_chain,
+from scanner import get_penny_candidates, get_options_chain
+
+app = FastAPI()
+
+# 🔓 CORS FIX — REQUIRED
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # allow Render frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-
-app = FastAPI(
-    title="Options Scanner API",
-    version="1.0",
-)
-
-API_VERSION = "1.0"
-
-
-# -------------------------
-# Helper response builders
-# -------------------------
-
-def success(data):
-    return {
-        "status": "ok",
-        "version": API_VERSION,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "data": data,
-    }
-
-
-def error(code: str, message: str, http_status: int = 400):
-    return JSONResponse(
-        status_code=http_status,
-        content={
-            "status": "error",
-            "version": API_VERSION,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "code": code,
-            "message": message,
-        },
-    )
-
-
-# -------------------------
-# Health Check
-# -------------------------
 
 @app.get("/health")
 def health():
-    return success({"service": "ok"})
-
-
-# -------------------------
-# Penny Stock Candidates
-# -------------------------
+    return {"status": "ok"}
 
 @app.get("/api/v1/candidates")
-def candidates():
-    try:
-        results = get_penny_candidates()
-        return success(results)
-    except Exception as e:
-        return error(
-            code="CANDIDATES_FAILED",
-            message=str(e),
-            http_status=500,
-        )
+def candidates(limit: int = 10):
+    return get_penny_candidates(limit=limit)
 
-
-# -------------------------
-# Options Chain by Symbol
-# -------------------------
-
-@app.get("/api/v1/symbol/{symbol}")
-def symbol(symbol: str):
-    try:
-        chain = get_options_chain(symbol.upper())
-        return success(chain)
-    except ValueError as e:
-        return error(
-            code="INVALID_SYMBOL",
-            message=str(e),
-            http_status=404,
-        )
-    except Exception as e:
-        return error(
-            code="OPTION_CHAIN_FAILED",
-            message=str(e),
-            http_status=500,
-        )
+@app.get("/api/v1/symbol/{ticker}")
+def symbol(ticker: str):
+    return get_options_chain(ticker)
