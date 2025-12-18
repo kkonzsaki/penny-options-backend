@@ -1,1 +1,2 @@
-const API_BASE_URL = "https://penny-option-backend.onrender.com";
+// config.js
+window.API_BASE_URL = "https://penny-option-backend.onrender.com";
