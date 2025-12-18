@@ -1,14 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from scanner import get_penny_candidates, get_options_chain
+from app.scanner import get_penny_candidates, get_options_chain
 
 app = FastAPI()
 
-# 🔓 CORS FIX — REQUIRED
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # allow Render frontend
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
