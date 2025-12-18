@@ -1,6 +1,8 @@
 console.log("Frontend loaded");
 
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("DOM fully loaded");
+
   const symbolInput = document.getElementById("symbolInput");
   const symbolOutput = document.getElementById("symbolOutput");
   const candidatesOutput = document.getElementById("candidatesOutput");
@@ -10,13 +12,9 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  window.fetchSymbol = async function () {
+  // 🔍 OPTIONS LOOKUP
+  window.fetchSymbol = async () => {
     const symbol = symbolInput.value.trim().toUpperCase();
-    if (!symbol) {
-      symbolOutput.textContent = "Please enter a symbol.";
-      return;
-    }
-
     symbolOutput.textContent = "Loading...";
 
     try {
@@ -24,11 +22,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
       symbolOutput.textContent = JSON.stringify(data, null, 2);
     } catch (err) {
-      symbolOutput.textContent = "Error fetching symbol data.";
+      console.error(err);
+      symbolOutput.textContent = "Error fetching symbol.";
     }
   };
 
-  window.fetchCandidates = async function () {
+  // 📋 CANDIDATES
+  window.fetchCandidates = async () => {
     candidatesOutput.textContent = "Loading...";
 
     try {
@@ -36,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
       candidatesOutput.textContent = JSON.stringify(data, null, 2);
     } catch (err) {
+      console.error(err);
       candidatesOutput.textContent = "Error fetching candidates.";
     }
   };
