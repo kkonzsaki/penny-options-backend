@@ -1,23 +1,25 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.scanner import get_penny_candidates, get_options_chain
+# IMPORT YOUR SCANNER FUNCTIONS
+from scanner import get_penny_candidates, get_options_chain
 
-app = FastAPI()
+app = FastAPI(title="Penny Options Backend")
 
-# ✅ CORS — REQUIRED FOR RENDER FRONTEND
+# =========================
+# CORS (REQUIRED)
+# =========================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://penny-options-frontend.onrender.com",
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "*"
-    ],
+    allow_origins=["*"],   # allow frontend on Render
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# =========================
+# ROUTES
+# =========================
 
 @app.get("/")
 def root():
