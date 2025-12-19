@@ -1,3 +1,9 @@
+import sys
+import os
+
+print("CWD:", os.getcwd())
+print("SYSPATH:", sys.path)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
