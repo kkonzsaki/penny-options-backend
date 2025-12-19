@@ -1,10 +1,14 @@
 console.log("Frontend loaded");
 
 document.addEventListener("DOMContentLoaded", () => {
+  if (typeof API_BASE === "undefined") {
+    console.error("API_BASE is not defined. config.js failed to load.");
+    return;
+  }
+
   const symbolInput = document.getElementById("symbolInput");
   const symbolBtn = document.getElementById("symbolBtn");
   const symbolOutput = document.getElementById("symbolOutput");
-
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
 
@@ -13,39 +17,30 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
-  // Fetch options chain for symbol
-  symbolBtn.onclick = async () => {
+  symbolBtn.addEventListener("click", async () => {
     const symbol = symbolInput.value.trim();
-    if (!symbol) {
-      symbolOutput.textContent = "Enter a symbol";
-      return;
-    }
-
     symbolOutput.textContent = "Loading...";
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/symbol/${symbol}`);
-      if (!res.ok) throw new Error("Bad response");
       const data = await res.json();
       symbolOutput.textContent = JSON.stringify(data, null, 2);
     } catch (err) {
-      symbolOutput.textContent = "Error fetching symbol data";
       console.error(err);
+      symbolOutput.textContent = "Error fetching symbol";
     }
-  };
+  });
 
-  // Fetch penny candidates
-  candidatesBtn.onclick = async () => {
+  candidatesBtn.addEventListener("click", async () => {
     candidatesOutput.textContent = "Loading...";
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/candidates`);
-      if (!res.ok) throw new Error("Bad response");
       const data = await res.json();
       candidatesOutput.textContent = JSON.stringify(data, null, 2);
     } catch (err) {
-      candidatesOutput.textContent = "Error fetching candidates";
       console.error(err);
+      candidatesOutput.textContent = "Error fetching candidates";
     }
-  };
+  });
 });
