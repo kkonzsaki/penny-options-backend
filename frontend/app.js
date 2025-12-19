@@ -1,18 +1,20 @@
 console.log("Frontend loaded");
 
 document.addEventListener("DOMContentLoaded", () => {
-  const symbolBtn = document.getElementById("symbolBtn");
-  const candidatesBtn = document.getElementById("candidatesBtn");
   const symbolInput = document.getElementById("symbolInput");
+  const symbolBtn = document.getElementById("symbolBtn");
   const symbolOutput = document.getElementById("symbolOutput");
+
+  const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
 
-  if (!symbolBtn || !candidatesBtn || !symbolInput || !symbolOutput || !candidatesOutput) {
+  if (!symbolInput || !symbolBtn || !symbolOutput || !candidatesBtn || !candidatesOutput) {
     console.error("Required DOM elements not found");
     return;
   }
 
-  symbolBtn.addEventListener("click", async () => {
+  // Fetch options chain for symbol
+  symbolBtn.onclick = async () => {
     const symbol = symbolInput.value.trim();
     if (!symbol) {
       symbolOutput.textContent = "Enter a symbol";
@@ -22,33 +24,28 @@ document.addEventListener("DOMContentLoaded", () => {
     symbolOutput.textContent = "Loading...";
 
     try {
-      const res = await fetch(
-        `${window.API_BASE_URL}/api/v1/symbol/${symbol}`
-      );
-      if (!res.ok) throw new Error("Backend error");
-
+      const res = await fetch(`${API_BASE}/api/v1/symbol/${symbol}`);
+      if (!res.ok) throw new Error("Bad response");
       const data = await res.json();
       symbolOutput.textContent = JSON.stringify(data, null, 2);
     } catch (err) {
-      symbolOutput.textContent = "Error fetching option chain";
+      symbolOutput.textContent = "Error fetching symbol data";
       console.error(err);
     }
-  });
+  };
 
-  candidatesBtn.addEventListener("click", async () => {
+  // Fetch penny candidates
+  candidatesBtn.onclick = async () => {
     candidatesOutput.textContent = "Loading...";
 
     try {
-      const res = await fetch(
-        `${window.API_BASE_URL}/api/v1/candidates`
-      );
-      if (!res.ok) throw new Error("Backend error");
-
+      const res = await fetch(`${API_BASE}/api/v1/candidates`);
+      if (!res.ok) throw new Error("Bad response");
       const data = await res.json();
       candidatesOutput.textContent = JSON.stringify(data, null, 2);
     } catch (err) {
       candidatesOutput.textContent = "Error fetching candidates";
       console.error(err);
     }
-  });
+  };
 });
