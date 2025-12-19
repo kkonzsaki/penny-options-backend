@@ -1,12 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-# IMPORTANT: fix import path
-from scanner import get_penny_candidates, get_options_chain
- (
-    get_penny_candidates,
-    get_options_chain
-)
+from backend.scanner import get_penny_candidates, get_options_chain
 
 app = FastAPI()
 
