@@ -8,7 +8,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
 
-  // ---- SYMBOL LOOKUP ----
+  if (!symbolBtn || !candidatesBtn || !candidatesOutput) {
+    console.error("Missing required DOM elements");
+    return;
+  }
+
+  // ===============================
+  // Fetch options chain for symbol
+  // ===============================
   symbolBtn.onclick = async () => {
     const symbol = symbolInput.value.trim();
     if (!symbol) {
@@ -20,46 +27,66 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/symbol/${symbol}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data = await res.json();
       symbolOutput.textContent = JSON.stringify(data, null, 2);
-    } catch {
+    } catch (err) {
+      console.error("Symbol fetch error:", err);
       symbolOutput.textContent = "Error fetching symbol data";
     }
   };
 
-  // ---- CANDIDATES TABLE ----
+  // ===============================
+  // Fetch penny candidates
+  // ===============================
   candidatesBtn.onclick = async () => {
-    candidatesOutput.innerHTML = "Loading...";
+    candidatesOutput.textContent = "Loading...";
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/candidates`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data = await res.json();
+      console.log("Candidates data:", data);
 
       if (!Array.isArray(data) || data.length === 0) {
-        candidatesOutput.textContent = "No candidates found";
+        candidatesOutput.textContent = "No candidates returned";
         return;
       }
 
-      const columns = Object.keys(data[0]);
-
-      let table = `<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;color:#e5e7eb">
+      // Build table
+      let table = `<table border="1" cellpadding="6" cellspacing="0">
         <thead>
-          <tr>${columns.map(c => `<th>${c}</th>`).join("")}</tr>
+          <tr>
+            <th>Symbol</th>
+            <th>Strike</th>
+            <th>Expiration</th>
+            <th>Price</th>
+            <th>Volume</th>
+            <th>Open Interest</th>
+          </tr>
         </thead>
-        <tbody>
-          ${data
-            .map(
-              row =>
-                `<tr>${columns
-                  .map(col => `<td>${row[col]}</td>`)
-                  .join("")}</tr>`
-            )
-            .join("")}
-        </tbody>
-      </table>`;
+        <tbody>`;
+
+      data.forEach(c => {
+        table += `
+          <tr>
+            <td>${c.symbol ?? "-"}</td>
+            <td>${c.strike ?? "-"}</td>
+            <td>${c.expiration ?? "-"}</td>
+            <td>${c.price ?? "-"}</td>
+            <td>${c.volume ?? "-"}</td>
+            <td>${c.open_interest ?? "-"}</td>
+          </tr>`;
+      });
+
+      table += `</tbody></table>`;
 
       candidatesOutput.innerHTML = table;
-    } catch {
+
+    } catch (err) {
+      console.error("Candidates fetch error:", err);
       candidatesOutput.textContent = "Error fetching candidates";
     }
   };
