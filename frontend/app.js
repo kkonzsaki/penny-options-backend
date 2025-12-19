@@ -1,46 +1,66 @@
 console.log("Frontend loaded");
 
 document.addEventListener("DOMContentLoaded", () => {
-  if (typeof API_BASE === "undefined") {
-    console.error("API_BASE is not defined. config.js failed to load.");
-    return;
-  }
-
   const symbolInput = document.getElementById("symbolInput");
   const symbolBtn = document.getElementById("symbolBtn");
   const symbolOutput = document.getElementById("symbolOutput");
+
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
 
-  if (!symbolInput || !symbolBtn || !symbolOutput || !candidatesBtn || !candidatesOutput) {
-    console.error("Required DOM elements not found");
-    return;
-  }
-
-  symbolBtn.addEventListener("click", async () => {
+  // ---- SYMBOL LOOKUP ----
+  symbolBtn.onclick = async () => {
     const symbol = symbolInput.value.trim();
+    if (!symbol) {
+      symbolOutput.textContent = "Enter a symbol";
+      return;
+    }
+
     symbolOutput.textContent = "Loading...";
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/symbol/${symbol}`);
       const data = await res.json();
       symbolOutput.textContent = JSON.stringify(data, null, 2);
-    } catch (err) {
-      console.error(err);
-      symbolOutput.textContent = "Error fetching symbol";
+    } catch {
+      symbolOutput.textContent = "Error fetching symbol data";
     }
-  });
+  };
 
-  candidatesBtn.addEventListener("click", async () => {
-    candidatesOutput.textContent = "Loading...";
+  // ---- CANDIDATES TABLE ----
+  candidatesBtn.onclick = async () => {
+    candidatesOutput.innerHTML = "Loading...";
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/candidates`);
       const data = await res.json();
-      candidatesOutput.textContent = JSON.stringify(data, null, 2);
-    } catch (err) {
-      console.error(err);
+
+      if (!Array.isArray(data) || data.length === 0) {
+        candidatesOutput.textContent = "No candidates found";
+        return;
+      }
+
+      const columns = Object.keys(data[0]);
+
+      let table = `<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;color:#e5e7eb">
+        <thead>
+          <tr>${columns.map(c => `<th>${c}</th>`).join("")}</tr>
+        </thead>
+        <tbody>
+          ${data
+            .map(
+              row =>
+                `<tr>${columns
+                  .map(col => `<td>${row[col]}</td>`)
+                  .join("")}</tr>`
+            )
+            .join("")}
+        </tbody>
+      </table>`;
+
+      candidatesOutput.innerHTML = table;
+    } catch {
       candidatesOutput.textContent = "Error fetching candidates";
     }
-  });
+  };
 });
