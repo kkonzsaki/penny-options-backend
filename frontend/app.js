@@ -1,6 +1,10 @@
 console.log("Frontend loaded");
 
 let candidatesCache = [];
+let currentOptions = [];
+let currentSymbol = "";
+let currentFilter = "ALL";
+
 
 document.addEventListener("DOMContentLoaded", () => {
   const candidatesBtn = document.getElementById("candidatesBtn");
