@@ -73,6 +73,17 @@
     label {
       font-size: 0.9rem;
     }
+
+    /* Make options table scrollable horizontally */
+    #optionsOutput {
+      overflow-x: auto;
+      margin-top: 10px;
+    }
+
+    #candidatesOutput {
+      overflow-x: auto;
+      margin-top: 10px;
+    }
   </style>
 </head>
 
@@ -83,7 +94,7 @@
   <h2>Options Chain Lookup</h2>
   <input id="symbolInput" placeholder="AAPL" />
   <button id="symbolBtn">Fetch</button>
-  <pre id="optionsOutput"></pre>
+  <div id="optionsOutput"></div>
 
   <!-- Penny Option Candidates -->
   <section>
@@ -98,7 +109,7 @@
     </div>
 
     <!-- Output -->
-    <div id="candidatesOutput" style="margin-top:15px;"></div>
+    <div id="candidatesOutput"></div>
   </section>
 
   <script src="config.js"></script>
