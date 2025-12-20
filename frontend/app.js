@@ -54,23 +54,67 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  async function loadOptionsChain(e) {
-    e.preventDefault();
-    const symbol = e.target.dataset.symbol;
-    optionsOutput.textContent = `Loading options for ${symbol}...`;
+async function loadOptionsChain(e) {
+  e.preventDefault();
+  const symbol = e.target.dataset.symbol;
+  optionsOutput.innerHTML = `Loading options for ${symbol}...`;
 
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-      if (!res.ok) throw new Error("Options fetch failed");
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
+    if (!res.ok) throw new Error("Options fetch failed");
 
-      const data = await res.json();
-      optionsOutput.textContent = JSON.stringify(data, null, 2);
+    const data = await res.json();
 
-    } catch (err) {
-      console.error(err);
-      optionsOutput.textContent = "Error loading options chain";
+    // EXPECTING: data.options OR data.calls / data.puts
+    const options = data.options || data.calls || [];
+
+    if (!options.length) {
+      optionsOutput.innerHTML = "No options returned";
+      return;
     }
+
+    let html = `
+      <h4>${symbol} Options</h4>
+      <table border="1" cellpadding="6" cellspacing="0">
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Strike</th>
+            <th>Expiration</th>
+            <th>Last</th>
+            <th>Bid</th>
+            <th>Ask</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    options.forEach(opt => {
+      html += `
+        <tr>
+          <td>${opt.type || "?"}</td>
+          <td>${opt.strike}</td>
+          <td>${opt.expiration}</td>
+          <td>${opt.last ?? "-"}</td>
+          <td>${opt.bid ?? "-"}</td>
+          <td>${opt.ask ?? "-"}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+        </tbody>
+      </table>
+    `;
+
+    optionsOutput.innerHTML = html;
+
+  } catch (err) {
+    console.error(err);
+    optionsOutput.innerHTML = "Error loading options chain";
   }
+}
+
 
   candidatesBtn.onclick = async () => {
     candidatesOutput.innerHTML = "Loading...";
