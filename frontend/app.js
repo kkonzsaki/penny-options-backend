@@ -5,6 +5,7 @@ let candidatesCache = [];
 document.addEventListener("DOMContentLoaded", () => {
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
+  const optionsOutput = document.getElementById("optionsOutput");
 
   const minPriceInput = document.getElementById("minPrice");
   const maxPriceInput = document.getElementById("maxPrice");
@@ -30,7 +31,11 @@ document.addEventListener("DOMContentLoaded", () => {
     data.forEach(c => {
       html += `
         <tr>
-          <td>${c.symbol}</td>
+          <td>
+            <a href="#" class="symbol-link" data-symbol="${c.symbol}">
+              ${c.symbol}
+            </a>
+          </td>
           <td>${c.price}</td>
         </tr>
       `;
@@ -42,10 +47,34 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
 
     candidatesOutput.innerHTML = html;
+
+    // attach click handlers AFTER render
+    document.querySelectorAll(".symbol-link").forEach(link => {
+      link.addEventListener("click", loadOptionsChain);
+    });
+  }
+
+  async function loadOptionsChain(e) {
+    e.preventDefault();
+    const symbol = e.target.dataset.symbol;
+    optionsOutput.textContent = `Loading options for ${symbol}...`;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
+      if (!res.ok) throw new Error("Options fetch failed");
+
+      const data = await res.json();
+      optionsOutput.textContent = JSON.stringify(data, null, 2);
+
+    } catch (err) {
+      console.error(err);
+      optionsOutput.textContent = "Error loading options chain";
+    }
   }
 
   candidatesBtn.onclick = async () => {
     candidatesOutput.innerHTML = "Loading...";
+    optionsOutput.textContent = "Click a symbol above";
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/candidates`);
