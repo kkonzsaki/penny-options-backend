@@ -5,7 +5,6 @@ let currentOptions = [];
 let currentSymbol = "";
 let currentFilter = "ALL";
 
-
 document.addEventListener("DOMContentLoaded", () => {
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
@@ -15,8 +14,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const maxPriceInput = document.getElementById("maxPrice");
   const applyFilterBtn = document.getElementById("applyFilter");
 
+  // -----------------------------
+  // Helper function to filter candidates
+  // -----------------------------
+  function filterCandidates(min = 0, max = Infinity) {
+    return candidatesCache.filter(c => c.price >= min && c.price <= max);
+  }
+
+  // -----------------------------
+  // Render candidates as table
+  // -----------------------------
   function renderTable(data) {
-    if (data.length === 0) {
+    if (!data || data.length === 0) {
       candidatesOutput.innerHTML = "No candidates match filter";
       return;
     }
@@ -58,68 +67,72 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-async function loadOptionsChain(e) {
-  e.preventDefault();
-  const symbol = e.target.dataset.symbol;
-  optionsOutput.innerHTML = `Loading options for ${symbol}...`;
+  // -----------------------------
+  // Load options chain for symbol
+  // -----------------------------
+  async function loadOptionsChain(e) {
+    e.preventDefault();
+    const symbol = e.target.dataset.symbol;
+    currentSymbol = symbol;
+    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
 
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-    if (!res.ok) throw new Error("Options fetch failed");
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
+      if (!res.ok) throw new Error("Options fetch failed");
 
-    const data = await res.json();
+      const data = await res.json();
+      const options = data.options || data.calls || [];
 
-    // EXPECTING: data.options OR data.calls / data.puts
-    const options = data.options || data.calls || [];
+      if (!options.length) {
+        optionsOutput.innerHTML = "No options returned";
+        return;
+      }
 
-    if (!options.length) {
-      optionsOutput.innerHTML = "No options returned";
-      return;
-    }
-
-    let html = `
-      <h4>${symbol} Options</h4>
-      <table border="1" cellpadding="6" cellspacing="0">
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Strike</th>
-            <th>Expiration</th>
-            <th>Last</th>
-            <th>Bid</th>
-            <th>Ask</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
-
-    options.forEach(opt => {
-      html += `
-        <tr>
-          <td>${opt.type || "?"}</td>
-          <td>${opt.strike}</td>
-          <td>${opt.expiration}</td>
-          <td>${opt.last ?? "-"}</td>
-          <td>${opt.bid ?? "-"}</td>
-          <td>${opt.ask ?? "-"}</td>
-        </tr>
+      let html = `
+        <h4>${symbol} Options</h4>
+        <table border="1" cellpadding="6" cellspacing="0">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Strike</th>
+              <th>Expiration</th>
+              <th>Last</th>
+              <th>Bid</th>
+              <th>Ask</th>
+            </tr>
+          </thead>
+          <tbody>
       `;
-    });
 
-    html += `
-        </tbody>
-      </table>
-    `;
+      options.forEach(opt => {
+        html += `
+          <tr>
+            <td>${opt.type || "?"}</td>
+            <td>${opt.strike}</td>
+            <td>${opt.expiration}</td>
+            <td>${opt.last ?? "-"}</td>
+            <td>${opt.bid ?? "-"}</td>
+            <td>${opt.ask ?? "-"}</td>
+          </tr>
+        `;
+      });
 
-    optionsOutput.innerHTML = html;
+      html += `
+          </tbody>
+        </table>
+      `;
 
-  } catch (err) {
-    console.error(err);
-    optionsOutput.innerHTML = "Error loading options chain";
+      optionsOutput.innerHTML = html;
+
+    } catch (err) {
+      console.error(err);
+      optionsOutput.innerHTML = "Error loading options chain";
+    }
   }
-}
 
-
+  // -----------------------------
+  // Load candidates button
+  // -----------------------------
   candidatesBtn.onclick = async () => {
     candidatesOutput.innerHTML = "Loading...";
     optionsOutput.textContent = "Click a symbol above";
@@ -138,16 +151,16 @@ async function loadOptionsChain(e) {
     }
   };
 
+  // -----------------------------
+  // Apply filter button
+  // -----------------------------
   applyFilterBtn.onclick = () => {
-    if (candidatesCache.length === 0) return;
+    if (!candidatesCache.length) return;
 
     const min = parseFloat(minPriceInput.value) || 0;
     const max = parseFloat(maxPriceInput.value) || Infinity;
 
-    const filtered = candidatesCache.filter(c =>
-      c.price >= min && c.price <= max
-    );
-
+    const filtered = filterCandidates(min, max);
     renderTable(filtered);
   };
 });
