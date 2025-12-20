@@ -5,10 +5,17 @@ let candidatesCache = [];
 document.addEventListener("DOMContentLoaded", () => {
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
-  const sortSymbolBtn = document.getElementById("sortSymbol");
-  const sortPriceBtn = document.getElementById("sortPrice");
+
+  const minPriceInput = document.getElementById("minPrice");
+  const maxPriceInput = document.getElementById("maxPrice");
+  const applyFilterBtn = document.getElementById("applyFilter");
 
   function renderTable(data) {
+    if (data.length === 0) {
+      candidatesOutput.innerHTML = "No candidates match filter";
+      return;
+    }
+
     let html = `
       <table border="1" cellpadding="6" cellspacing="0">
         <thead>
@@ -46,12 +53,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const data = await res.json();
       candidatesCache = data.candidates || [];
-
-      if (candidatesCache.length === 0) {
-        candidatesOutput.innerHTML = "No candidates returned";
-        return;
-      }
-
       renderTable(candidatesCache);
 
     } catch (err) {
@@ -60,15 +61,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  sortSymbolBtn.onclick = () => {
+  applyFilterBtn.onclick = () => {
     if (candidatesCache.length === 0) return;
-    candidatesCache.sort((a, b) => a.symbol.localeCompare(b.symbol));
-    renderTable(candidatesCache);
-  };
 
-  sortPriceBtn.onclick = () => {
-    if (candidatesCache.length === 0) return;
-    candidatesCache.sort((a, b) => a.price - b.price);
-    renderTable(candidatesCache);
+    const min = parseFloat(minPriceInput.value) || 0;
+    const max = parseFloat(maxPriceInput.value) || Infinity;
+
+    const filtered = candidatesCache.filter(c =>
+      c.price >= min && c.price <= max
+    );
+
+    renderTable(filtered);
   };
 });
