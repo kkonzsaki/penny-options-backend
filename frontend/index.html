@@ -10,37 +10,27 @@
 
   <h1>Penny Options Scout</h1>
 
+  <!-- Options Chain Lookup -->
   <h2>Options Chain Lookup</h2>
   <input id="symbolInput" placeholder="AAPL" />
   <button id="symbolBtn">Fetch</button>
-  <pre id="symbolOutput"></pre>
+  <pre id="optionsOutput"></pre>
 
+  <!-- Penny Option Candidates -->
   <section>
-  <h2>Penny Option Candidates</h2>
-  <button id="candidatesBtn">Load Candidates</button>
-    <div id="output"></div>
-    <button id="sortSymbol">Sort by Symbol</button>
-<button id="sortPrice">Sort by Price</button>
-    <label>Min Price</label>
-<input id="minPrice" type="number" step="0.01" placeholder="0" />
+    <h2>Penny Option Candidates</h2>
+    <button id="candidatesBtn">Load Candidates</button>
 
-<label>Max Price</label>
-<input id="maxPrice" type="number" step="0.01" placeholder="5" />
+    <!-- Filters -->
+    <div style="margin-top:10px;">
+      <label>Min Price: <input type="number" id="minPrice" placeholder="0" step="0.01" /></label>
+      <label>Max Price: <input type="number" id="maxPrice" placeholder="10" step="0.01" /></label>
+      <button id="applyFilter">Apply Filter</button>
+    </div>
 
-<button id="applyFilter">Apply Filter</button>
-
-<div id="candidatesOutput"></div>
-    <h3>Options Chain</h3>
-    <div style="margin:10px 0;">
-  <button id="showAll">All</button>
-  <button id="showCalls">Calls</button>
-  <button id="showPuts">Puts</button>
-</div>
-
-<div id="optionsOutput">Click a symbol above</div>
-
-</section>
-
+    <!-- Output -->
+    <div id="candidatesOutput" style="margin-top:15px;"></div>
+  </section>
 
   <script src="config.js"></script>
   <script src="app.js"></script>
