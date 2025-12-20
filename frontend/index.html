@@ -4,10 +4,79 @@
   <meta charset="UTF-8" />
   <title>Penny Options Scout</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      background: #0f172a;
+      color: #e5e7eb;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    h1, h2 {
+      margin-bottom: 10px;
+    }
+
+    input, button {
+      padding: 6px 10px;
+      margin: 5px 5px 5px 0;
+      border-radius: 4px;
+      border: none;
+      font-size: 1rem;
+    }
+
+    button {
+      cursor: pointer;
+      background-color: #2563eb;
+      color: white;
+    }
+
+    button:hover {
+      background-color: #1d4ed8;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      border: 1px solid #374151;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #1f2937;
+      color: #f9fafb;
+    }
+
+    tr:nth-child(even) {
+      background-color: #111827;
+    }
+
+    tr:hover {
+      background-color: #1e40af;
+    }
+
+    a.symbol-link {
+      color: #3b82f6;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    a.symbol-link:hover {
+      text-decoration: underline;
+    }
+
+    label {
+      font-size: 0.9rem;
+    }
+  </style>
 </head>
 
-<body style="background:#0f172a;color:#e5e7eb;font-family:Arial;padding:20px">
-
+<body>
   <h1>Penny Options Scout</h1>
 
   <!-- Options Chain Lookup -->
@@ -34,6 +103,5 @@
 
   <script src="config.js"></script>
   <script src="app.js"></script>
-
 </body>
 </html>
