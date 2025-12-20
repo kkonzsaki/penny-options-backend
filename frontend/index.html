@@ -1,6 +1,73 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <style>
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    background: #020617;
+    color: #e5e7eb;
+  }
+
+  th, td {
+    padding: 8px 10px;
+    border: 1px solid #334155;
+    text-align: left;
+    font-size: 14px;
+  }
+
+  th {
+    background: #020617;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  tr:hover {
+    background: #1e293b;
+  }
+
+  a.symbol-link {
+    color: #38bdf8;
+    text-decoration: none;
+    font-weight: bold;
+  }
+
+  a.symbol-link:hover {
+    text-decoration: underline;
+  }
+
+  #candidatesOutput,
+  #optionsOutput {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-top: 10px;
+  }
+
+  button {
+    background: #2563eb;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+  }
+
+  button:hover {
+    background: #1d4ed8;
+  }
+
+  input {
+    padding: 6px;
+    margin-right: 6px;
+    border-radius: 4px;
+    border: 1px solid #334155;
+    background: #020617;
+    color: #e5e7eb;
+  }
+</style>
+
   <meta charset="UTF-8" />
   <title>Penny Options Scout</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
