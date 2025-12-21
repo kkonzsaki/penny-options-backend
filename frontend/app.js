@@ -6,8 +6,8 @@ console.log("Frontend loaded");
 let candidatesCache = [];
 let currentOptions = [];
 let currentSymbol = "";
-let currentFilter = "ALL";
-let sortDirection = "asc"; // NEW: price sort toggle
+let currentOptionType = "call"; // call | put
+let sortDirection = "asc";
 
 /* ================================
    DOM READY
@@ -21,17 +21,37 @@ document.addEventListener("DOMContentLoaded", () => {
   const maxPriceInput = document.getElementById("maxPrice");
   const applyFilterBtn = document.getElementById("applyFilter");
 
+  const callsBtn = document.getElementById("callsBtn");
+  const putsBtn = document.getElementById("putsBtn");
+
   /* ================================
-     RENDER CANDIDATES TABLE
+     OPTION TYPE TOGGLE
   ================================ */
-  function renderTable(data) {
-    if (!data || data.length === 0) {
+  callsBtn.onclick = () => {
+    currentOptionType = "call";
+    callsBtn.classList.add("active");
+    putsBtn.classList.remove("active");
+    if (currentOptions.length) renderOptions();
+  };
+
+  putsBtn.onclick = () => {
+    currentOptionType = "put";
+    putsBtn.classList.add("active");
+    callsBtn.classList.remove("active");
+    if (currentOptions.length) renderOptions();
+  };
+
+  /* ================================
+     RENDER CANDIDATES
+  ================================ */
+  function renderCandidates(data) {
+    if (!data.length) {
       candidatesOutput.innerHTML = "No candidates match filter";
       return;
     }
 
     let html = `
-      <table border="1" cellpadding="6" cellspacing="0">
+      <table>
         <thead>
           <tr>
             <th>Symbol</th>
@@ -61,107 +81,111 @@ document.addEventListener("DOMContentLoaded", () => {
 
     candidatesOutput.innerHTML = html;
 
-    // Attach click handlers AFTER render
     document.querySelectorAll(".symbol-link").forEach(link => {
       link.addEventListener("click", loadOptionsChain);
     });
   }
 
   /* ================================
-     SORT CANDIDATES (NEW)
+     SORT CANDIDATES
   ================================ */
   function sortCandidates() {
-    if (!candidatesCache.length) return;
-
-    candidatesCache.sort((a, b) => {
-      return sortDirection === "asc"
-        ? a.price - b.price
-        : b.price - a.price;
-    });
-
+    candidatesCache.sort((a, b) =>
+      sortDirection === "asc" ? a.price - b.price : b.price - a.price
+    );
     sortDirection = sortDirection === "asc" ? "desc" : "asc";
-    renderTable(candidatesCache);
+    renderCandidates(candidatesCache);
   }
 
   /* ================================
-     LOAD OPTIONS CHAIN
+     LOAD OPTIONS
   ================================ */
   async function loadOptionsChain(e) {
     e.preventDefault();
-    const symbol = e.target.dataset.symbol;
-    currentSymbol = symbol;
-
-    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
+    currentSymbol = e.target.dataset.symbol;
+    optionsOutput.innerHTML = `Loading ${currentSymbol} options...`;
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
+      const res = await fetch(`${API_BASE}/api/v1/options/${currentSymbol}`);
       if (!res.ok) throw new Error("Options fetch failed");
 
       const data = await res.json();
-      const options = data.options || data.calls || [];
+      currentOptions = data.options || data.calls || [];
 
-      if (!options.length) {
+      if (!currentOptions.length) {
         optionsOutput.innerHTML = "No options returned";
         return;
       }
 
-      let html = `
-        <h4>${symbol} Options</h4>
-        <table border="1" cellpadding="6" cellspacing="0">
-          <thead>
-            <tr>
-              <th>Type</th>
-              <th>Strike</th>
-              <th>Expiration</th>
-              <th>Last</th>
-              <th>Bid</th>
-              <th>Ask</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-
-      options.forEach(opt => {
-        html += `
-          <tr>
-            <td>${opt.type || "?"}</td>
-            <td>${opt.strike}</td>
-            <td>${opt.expiration}</td>
-            <td>${opt.last ?? "-"}</td>
-            <td>${opt.bid ?? "-"}</td>
-            <td>${opt.ask ?? "-"}</td>
-          </tr>
-        `;
-      });
-
-      html += `
-          </tbody>
-        </table>
-      `;
-
-      optionsOutput.innerHTML = html;
+      renderOptions();
 
     } catch (err) {
       console.error(err);
-      optionsOutput.innerHTML = "Error loading options chain";
+      optionsOutput.innerHTML = "Error loading options";
     }
   }
 
   /* ================================
-     LOAD CANDIDATES BUTTON
+     RENDER OPTIONS (CALL / PUT)
+  ================================ */
+  function renderOptions() {
+    const filtered = currentOptions.filter(opt =>
+      opt.type?.toLowerCase() === currentOptionType
+    );
+
+    if (!filtered.length) {
+      optionsOutput.innerHTML = `No ${currentOptionType.toUpperCase()} options`;
+      return;
+    }
+
+    let html = `
+      <h3>${currentSymbol} ${currentOptionType.toUpperCase()}S</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Strike</th>
+            <th>Expiration</th>
+            <th>Last</th>
+            <th>Bid</th>
+            <th>Ask</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    filtered.forEach(opt => {
+      html += `
+        <tr>
+          <td>${opt.strike}</td>
+          <td>${opt.expiration}</td>
+          <td>${opt.last ?? "-"}</td>
+          <td>${opt.bid ?? "-"}</td>
+          <td>${opt.ask ?? "-"}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+        </tbody>
+      </table>
+    `;
+
+    optionsOutput.innerHTML = html;
+  }
+
+  /* ================================
+     LOAD CANDIDATES
   ================================ */
   candidatesBtn.onclick = async () => {
     candidatesOutput.innerHTML = "Loading...";
-    optionsOutput.textContent = "Click a symbol above";
+    optionsOutput.innerHTML = "Click a symbol below";
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/candidates`);
-      if (!res.ok) throw new Error("Fetch failed");
+      if (!res.ok) throw new Error("Candidates fetch failed");
 
       const data = await res.json();
       candidatesCache = data.candidates || [];
-
-      // NEW: auto-sort on load
       sortCandidates();
 
     } catch (err) {
@@ -183,6 +207,6 @@ document.addEventListener("DOMContentLoaded", () => {
       c.price >= min && c.price <= max
     );
 
-    renderTable(filtered);
+    renderCandidates(filtered);
   };
 });
