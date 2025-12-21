@@ -20,6 +20,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const expirationSelect = document.getElementById("expirationSelect");
   const maxAskInput = document.getElementById("maxAsk");
 
+  const exportAllBtn = document.getElementById("exportAll");
+  const exportBestBtn = document.getElementById("exportBest");
+
+  let lastRenderedOptions = [];
+
   /* ===========================
      CANDIDATES TABLE
   =========================== */
@@ -101,7 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* ===========================
-     SCORE OPTIONS (STEP 6)
+     SCORE OPTIONS
   =========================== */
   function scoreOption(o) {
     const askScore = o.ask ? 1 / o.ask : 0;
@@ -109,6 +114,28 @@ document.addEventListener("DOMContentLoaded", () => {
     const oiScore = o.openInterest || o.oi || 0;
 
     return askScore * 5 + volumeScore * 0.01 + oiScore * 0.005;
+  }
+
+  /* ===========================
+     CSV HELPERS (STEP 7)
+  =========================== */
+  function downloadCSV(filename, rows) {
+    const header = Object.keys(rows[0]).join(",");
+    const body = rows.map(r =>
+      Object.values(r).map(v => `"${v ?? ""}"`).join(",")
+    );
+
+    const csv = [header, ...body].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   /* ===========================
@@ -135,14 +162,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!filtered.length) {
       optionsOutput.innerHTML = "No options match filters";
+      lastRenderedOptions = [];
       return;
     }
 
-    /* 🔥 SORT BY SCORE (BEST FIRST) */
     filtered.sort((a, b) => scoreOption(b) - scoreOption(a));
+    lastRenderedOptions = filtered;
 
     let html = `
       <h3>${currentSymbol} ${currentType}s</h3>
+
+      <div style="margin-bottom:10px;">
+        <button id="exportBest">Export Best</button>
+        <button id="exportAll">Export All</button>
+      </div>
+
       <table>
         <thead>
           <tr>
@@ -178,6 +212,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
     html += "</tbody></table>";
     optionsOutput.innerHTML = html;
+
+    document.getElementById("exportAll").onclick = exportAllCSV;
+    document.getElementById("exportBest").onclick = exportBestCSV;
+  }
+
+  /* ===========================
+     CSV EXPORT ACTIONS
+  =========================== */
+  function exportAllCSV() {
+    if (!lastRenderedOptions.length) return;
+
+    const rows = lastRenderedOptions.map(o => ({
+      symbol: currentSymbol,
+      type: o.type,
+      strike: o.strike,
+      expiration: o.expiration,
+      bid: o.bid,
+      ask: o.ask,
+      last: o.last,
+      volume: o.volume,
+      openInterest: o.openInterest ?? o.oi
+    }));
+
+    downloadCSV(`${currentSymbol}_options.csv`, rows);
+  }
+
+  function exportBestCSV() {
+    if (!lastRenderedOptions.length) return;
+
+    const o = lastRenderedOptions[0];
+
+    downloadCSV(`${currentSymbol}_best_option.csv`, [{
+      symbol: currentSymbol,
+      type: o.type,
+      strike: o.strike,
+      expiration: o.expiration,
+      bid: o.bid,
+      ask: o.ask,
+      last: o.last,
+      volume: o.volume,
+      openInterest: o.openInterest ?? o.oi
+    }]);
   }
 
   /* ===========================
@@ -185,15 +261,11 @@ document.addEventListener("DOMContentLoaded", () => {
   =========================== */
   callsBtn.onclick = () => {
     currentType = "CALL";
-    callsBtn.classList.add("active");
-    putsBtn.classList.remove("active");
     renderOptions();
   };
 
   putsBtn.onclick = () => {
     currentType = "PUT";
-    putsBtn.classList.add("active");
-    callsBtn.classList.remove("active");
     renderOptions();
   };
 
