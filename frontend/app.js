@@ -1,10 +1,17 @@
 console.log("Frontend loaded");
 
+/* ================================
+   GLOBAL STATE
+================================ */
 let candidatesCache = [];
 let currentOptions = [];
 let currentSymbol = "";
 let currentFilter = "ALL";
+let sortDirection = "asc"; // NEW: price sort toggle
 
+/* ================================
+   DOM READY
+================================ */
 document.addEventListener("DOMContentLoaded", () => {
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
@@ -13,20 +20,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const minPriceInput = document.getElementById("minPrice");
   const maxPriceInput = document.getElementById("maxPrice");
   const applyFilterBtn = document.getElementById("applyFilter");
-  const symbolInput = document.getElementById("symbolInput");
-  const symbolBtn = document.getElementById("symbolBtn");
 
-  // ================================
-  // Helper: Render candidates table
-  // ================================
-  function renderCandidatesTable(data) {
+  /* ================================
+     RENDER CANDIDATES TABLE
+  ================================ */
+  function renderTable(data) {
     if (!data || data.length === 0) {
       candidatesOutput.innerHTML = "No candidates match filter";
       return;
     }
 
     let html = `
-      <table>
+      <table border="1" cellpadding="6" cellspacing="0">
         <thead>
           <tr>
             <th>Symbol</th>
@@ -39,7 +44,11 @@ document.addEventListener("DOMContentLoaded", () => {
     data.forEach(c => {
       html += `
         <tr>
-          <td><a href="#" class="symbol-link" data-symbol="${c.symbol}">${c.symbol}</a></td>
+          <td>
+            <a href="#" class="symbol-link" data-symbol="${c.symbol}">
+              ${c.symbol}
+            </a>
+          </td>
           <td>${c.price}</td>
         </tr>
       `;
@@ -52,15 +61,31 @@ document.addEventListener("DOMContentLoaded", () => {
 
     candidatesOutput.innerHTML = html;
 
-    // Attach click handlers to symbols
+    // Attach click handlers AFTER render
     document.querySelectorAll(".symbol-link").forEach(link => {
       link.addEventListener("click", loadOptionsChain);
     });
   }
 
-  // ========================================
-  // Helper: Fetch and display options chain
-  // ========================================
+  /* ================================
+     SORT CANDIDATES (NEW)
+  ================================ */
+  function sortCandidates() {
+    if (!candidatesCache.length) return;
+
+    candidatesCache.sort((a, b) => {
+      return sortDirection === "asc"
+        ? a.price - b.price
+        : b.price - a.price;
+    });
+
+    sortDirection = sortDirection === "asc" ? "desc" : "asc";
+    renderTable(candidatesCache);
+  }
+
+  /* ================================
+     LOAD OPTIONS CHAIN
+  ================================ */
   async function loadOptionsChain(e) {
     e.preventDefault();
     const symbol = e.target.dataset.symbol;
@@ -82,7 +107,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       let html = `
         <h4>${symbol} Options</h4>
-        <table>
+        <table border="1" cellpadding="6" cellspacing="0">
           <thead>
             <tr>
               <th>Type</th>
@@ -122,9 +147,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // =========================
-  // Load candidates button
-  // =========================
+  /* ================================
+     LOAD CANDIDATES BUTTON
+  ================================ */
   candidatesBtn.onclick = async () => {
     candidatesOutput.innerHTML = "Loading...";
     optionsOutput.textContent = "Click a symbol above";
@@ -135,7 +160,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const data = await res.json();
       candidatesCache = data.candidates || [];
-      renderCandidatesTable(candidatesCache);
+
+      // NEW: auto-sort on load
+      sortCandidates();
 
     } catch (err) {
       console.error(err);
@@ -143,80 +170,19 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // =========================
-  // Symbol lookup button
-  // =========================
-  symbolBtn.onclick = async () => {
-    const symbol = symbolInput.value.trim().toUpperCase();
-    if (!symbol) return;
-    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
-
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-      if (!res.ok) throw new Error("Fetch failed");
-
-      const data = await res.json();
-      const options = data.options || data.calls || [];
-
-      if (!options.length) {
-        optionsOutput.innerHTML = "No options returned";
-        return;
-      }
-
-      // Render options
-      let html = `
-        <h4>${symbol} Options</h4>
-        <table>
-          <thead>
-            <tr>
-              <th>Type</th>
-              <th>Strike</th>
-              <th>Expiration</th>
-              <th>Last</th>
-              <th>Bid</th>
-              <th>Ask</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-
-      options.forEach(opt => {
-        html += `
-          <tr>
-            <td>${opt.type || "?"}</td>
-            <td>${opt.strike}</td>
-            <td>${opt.expiration}</td>
-            <td>${opt.last ?? "-"}</td>
-            <td>${opt.bid ?? "-"}</td>
-            <td>${opt.ask ?? "-"}</td>
-          </tr>
-        `;
-      });
-
-      html += `
-          </tbody>
-        </table>
-      `;
-
-      optionsOutput.innerHTML = html;
-
-    } catch (err) {
-      console.error(err);
-      optionsOutput.innerHTML = "Error loading options chain";
-    }
-  };
-
-  // =========================
-  // Apply price filter
-  // =========================
+  /* ================================
+     PRICE FILTER
+  ================================ */
   applyFilterBtn.onclick = () => {
     if (!candidatesCache.length) return;
 
     const min = parseFloat(minPriceInput.value) || 0;
     const max = parseFloat(maxPriceInput.value) || Infinity;
 
-    const filtered = candidatesCache.filter(c => c.price >= min && c.price <= max);
+    const filtered = candidatesCache.filter(c =>
+      c.price >= min && c.price <= max
+    );
 
-    renderCandidatesTable(filtered);
+    renderTable(filtered);
   };
 });
