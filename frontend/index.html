@@ -17,26 +17,31 @@
       margin-bottom: 10px;
     }
 
-    input, select, button {
-      padding: 6px 10px;
-      margin: 5px 5px 5px 0;
+    input {
+      padding: 6px;
+      margin-right: 6px;
       border-radius: 4px;
-      border: none;
-      font-size: 1rem;
+      border: 1px solid #334155;
+      background: #020617;
+      color: #e5e7eb;
     }
 
     button {
-      cursor: pointer;
-      background-color: #2563eb;
+      background: #2563eb;
       color: white;
+      border: none;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 4px;
     }
 
     button:hover {
-      background-color: #1d4ed8;
+      background: #1d4ed8;
     }
 
     button.active {
-      background-color: #16a34a;
+      background: #22c55e;
+      color: black;
     }
 
     table {
@@ -44,23 +49,25 @@
       border-collapse: collapse;
       margin-top: 10px;
       background: #020617;
+      color: #e5e7eb;
     }
 
     th, td {
+      padding: 8px 10px;
       border: 1px solid #334155;
-      padding: 8px;
       text-align: center;
       font-size: 14px;
     }
 
     th {
-      background-color: #020617;
+      background: #020617;
       position: sticky;
       top: 0;
+      z-index: 2;
     }
 
     tr:hover {
-      background-color: #1e293b;
+      background: #1e293b;
     }
 
     a.symbol-link {
@@ -81,7 +88,15 @@
     }
 
     .controls {
-      margin-top: 10px;
+      margin: 10px 0;
+    }
+
+    select {
+      padding: 6px;
+      background: #020617;
+      color: #e5e7eb;
+      border: 1px solid #334155;
+      border-radius: 4px;
     }
   </style>
 </head>
@@ -90,7 +105,9 @@
 
   <h1>Penny Options Scout</h1>
 
-  <!-- OPTIONS -->
+  <!-- ========================= -->
+  <!-- OPTIONS CHAIN LOOKUP -->
+  <!-- ========================= -->
   <h2>Options Chain</h2>
 
   <div class="controls">
@@ -100,29 +117,48 @@
     <select id="expirationSelect">
       <option value="ALL">All Expirations</option>
     </select>
+
+    <!-- 🔥 MAX ASK FILTER -->
+    <input
+      type="number"
+      id="maxAsk"
+      placeholder="Max Ask (e.g. 0.20)"
+      step="0.01"
+    />
   </div>
 
   <div id="optionsOutput">Click a symbol below</div>
 
-  <!-- CANDIDATES -->
+  <!-- ========================= -->
+  <!-- CANDIDATES SECTION -->
+  <!-- ========================= -->
   <section>
     <h2>Penny Option Candidates</h2>
+
     <button id="candidatesBtn">Load Candidates</button>
 
     <div class="controls">
-      <label>Min Price:
-        <input type="number" id="minPrice" placeholder="0" step="0.01">
+      <label>
+        Min Price:
+        <input type="number" id="minPrice" placeholder="0" step="0.01" />
       </label>
-      <label>Max Price:
-        <input type="number" id="maxPrice" placeholder="10" step="0.01">
+
+      <label>
+        Max Price:
+        <input type="number" id="maxPrice" placeholder="10" step="0.01" />
       </label>
+
       <button id="applyFilter">Apply Filter</button>
     </div>
 
     <div id="candidatesOutput"></div>
   </section>
 
+  <!-- ========================= -->
+  <!-- SCRIPTS -->
+  <!-- ========================= -->
   <script src="config.js"></script>
   <script src="app.js"></script>
+
 </body>
 </html>
