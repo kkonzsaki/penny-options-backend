@@ -8,6 +8,7 @@ let currentOptions = [];
 let currentSymbol = "";
 let currentOptionType = "call";
 let currentExpiration = "ALL";
+let maxAskFilter = Infinity;
 
 /* ================================
    DOM READY
@@ -24,6 +25,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const callsBtn = document.getElementById("callsBtn");
   const putsBtn = document.getElementById("putsBtn");
   const expirationSelect = document.getElementById("expirationSelect");
+
+  const maxAskInput = document.getElementById("maxAsk");
 
   /* ================================
      OPTION TYPE TOGGLE
@@ -44,6 +47,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   expirationSelect.onchange = () => {
     currentExpiration = expirationSelect.value;
+    renderOptions();
+  };
+
+  maxAskInput.oninput = () => {
+    maxAskFilter = parseFloat(maxAskInput.value) || Infinity;
     renderOptions();
   };
 
@@ -133,7 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* ================================
-     RENDER OPTIONS
+     RENDER OPTIONS (WITH ASK FILTER)
   ================================ */
   function renderOptions() {
     if (!currentOptions.length) return;
@@ -145,6 +153,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (currentExpiration !== "ALL") {
       filtered = filtered.filter(o => o.expiration === currentExpiration);
     }
+
+    filtered = filtered.filter(o =>
+      o.ask !== null &&
+      o.ask !== undefined &&
+      o.ask <= maxAskFilter
+    );
 
     if (!filtered.length) {
       optionsOutput.innerHTML = "No options match filters";
