@@ -101,7 +101,18 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* ===========================
-     SORT + FILTER + RENDER
+     SCORE OPTIONS (STEP 6)
+  =========================== */
+  function scoreOption(o) {
+    const askScore = o.ask ? 1 / o.ask : 0;
+    const volumeScore = o.volume || 0;
+    const oiScore = o.openInterest || o.oi || 0;
+
+    return askScore * 5 + volumeScore * 0.01 + oiScore * 0.005;
+  }
+
+  /* ===========================
+     RENDER OPTIONS TABLE
   =========================== */
   function renderOptions() {
     if (!currentOptions.length) {
@@ -110,7 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     let filtered = currentOptions.filter(o =>
-      (currentType === "CALL" ? o.type === "call" : o.type === "put")
+      currentType === "CALL" ? o.type === "call" : o.type === "put"
     );
 
     if (currentExpiration !== "ALL") {
@@ -122,17 +133,13 @@ document.addEventListener("DOMContentLoaded", () => {
       filtered = filtered.filter(o => o.ask !== null && o.ask <= maxAsk);
     }
 
-    /* 🔥 SORT BY CHEAPEST ASK */
-    filtered.sort((a, b) => {
-      if (a.ask == null) return 1;
-      if (b.ask == null) return -1;
-      return a.ask - b.ask;
-    });
-
     if (!filtered.length) {
       optionsOutput.innerHTML = "No options match filters";
       return;
     }
+
+    /* 🔥 SORT BY SCORE (BEST FIRST) */
+    filtered.sort((a, b) => scoreOption(b) - scoreOption(a));
 
     let html = `
       <h3>${currentSymbol} ${currentType}s</h3>
@@ -152,9 +159,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <tbody>
     `;
 
-    filtered.forEach(o => {
+    filtered.forEach((o, index) => {
+      const highlight = index === 0 ? `style="background:#064e3b;font-weight:bold;"` : "";
+
       html += `
-        <tr>
+        <tr ${highlight}>
           <td>${o.type}</td>
           <td>${o.strike}</td>
           <td>${o.expiration}</td>
