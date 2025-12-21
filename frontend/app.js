@@ -49,22 +49,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const maxAskInput = document.getElementById("maxAsk");
 
   /* ===========================
-     WATCHLIST RENDER
+     WATCHLIST
   =========================== */
   function renderWatchlist() {
     const list = getWatchlist();
-
     if (!list.length) return;
 
     let html = `
       <h3>⭐ Watchlist</h3>
       <table>
         <thead>
-          <tr>
-            <th>Symbol</th>
-            <th>Price</th>
-            <th>Remove</th>
-          </tr>
+          <tr><th>Symbol</th><th>Price</th><th></th></tr>
         </thead>
         <tbody>
     `;
@@ -72,15 +67,9 @@ document.addEventListener("DOMContentLoaded", () => {
     list.forEach(item => {
       html += `
         <tr>
-          <td>
-            <a href="#" class="watch-symbol" data-symbol="${item.symbol}" data-price="${item.price}">
-              ${item.symbol}
-            </a>
-          </td>
+          <td><a href="#" class="watch-symbol" data-symbol="${item.symbol}" data-price="${item.price}">${item.symbol}</a></td>
           <td>${item.price}</td>
-          <td>
-            <button data-remove="${item.symbol}">✕</button>
-          </td>
+          <td><button data-remove="${item.symbol}">✕</button></td>
         </tr>
       `;
     });
@@ -89,21 +78,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     candidatesOutput.innerHTML = html + candidatesOutput.innerHTML;
 
-    document.querySelectorAll(".watch-symbol").forEach(link => {
-      link.addEventListener("click", loadOptionsChain);
-    });
+    document.querySelectorAll(".watch-symbol").forEach(l =>
+      l.addEventListener("click", loadOptionsChain)
+    );
 
     document.querySelectorAll("button[data-remove]").forEach(btn => {
       btn.onclick = () => {
-        let list = getWatchlist().filter(s => s.symbol !== btn.dataset.remove);
-        saveWatchlist(list);
+        saveWatchlist(getWatchlist().filter(s => s.symbol !== btn.dataset.remove));
         renderWatchlist();
       };
     });
   }
 
   /* ===========================
-     CANDIDATES TABLE
+     CANDIDATES
   =========================== */
   function renderCandidates(data) {
     if (!data.length) {
@@ -111,35 +99,22 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const watchlist = getWatchlist();
+
     let html = `
       <table>
         <thead>
-          <tr>
-            <th>⭐</th>
-            <th>Symbol</th>
-            <th>Price</th>
-          </tr>
+          <tr><th>⭐</th><th>Symbol</th><th>Price</th></tr>
         </thead>
         <tbody>
     `;
 
-    const watchlist = getWatchlist();
-
     data.forEach(c => {
       const starred = watchlist.some(w => w.symbol === c.symbol) ? "★" : "☆";
-
       html += `
         <tr>
-          <td>
-            <button class="star-btn" data-symbol="${c.symbol}" data-price="${c.price}">
-              ${starred}
-            </button>
-          </td>
-          <td>
-            <a href="#" class="symbol-link" data-symbol="${c.symbol}" data-price="${c.price}">
-              ${c.symbol}
-            </a>
-          </td>
+          <td><button class="star-btn" data-symbol="${c.symbol}" data-price="${c.price}">${starred}</button></td>
+          <td><a href="#" class="symbol-link" data-symbol="${c.symbol}" data-price="${c.price}">${c.symbol}</a></td>
           <td>${c.price}</td>
         </tr>
       `;
@@ -150,17 +125,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     renderWatchlist();
 
-    document.querySelectorAll(".symbol-link").forEach(link => {
-      link.addEventListener("click", loadOptionsChain);
-    });
+    document.querySelectorAll(".symbol-link").forEach(l =>
+      l.addEventListener("click", loadOptionsChain)
+    );
 
-    document.querySelectorAll(".star-btn").forEach(btn => {
-      btn.onclick = () => toggleWatchlist(btn.dataset.symbol, btn.dataset.price);
-    });
+    document.querySelectorAll(".star-btn").forEach(b =>
+      b.onclick = () => toggleWatchlist(b.dataset.symbol, b.dataset.price)
+    );
   }
 
   /* ===========================
-     LOAD OPTIONS
+     OPTIONS
   =========================== */
   async function loadOptionsChain(e) {
     e.preventDefault();
@@ -171,57 +146,45 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/options/${currentSymbol}`);
-      if (!res.ok) throw new Error("Options fetch failed");
-
       const data = await res.json();
       currentOptions = data.options || [];
 
       buildExpirationDropdown(currentOptions);
       renderOptions();
-
-    } catch (err) {
-      console.error(err);
+    } catch {
       optionsOutput.innerHTML = "Error loading options";
     }
   }
 
-  /* ===========================
-     EXPIRATION DROPDOWN
-  =========================== */
   function buildExpirationDropdown(options) {
-    const expirations = [...new Set(options.map(o => o.expiration))];
     expirationSelect.innerHTML = `<option value="ALL">All Expirations</option>`;
-
-    expirations.forEach(exp => {
-      const opt = document.createElement("option");
-      opt.value = exp;
-      opt.textContent = exp;
-      expirationSelect.appendChild(opt);
+    [...new Set(options.map(o => o.expiration))].forEach(exp => {
+      expirationSelect.innerHTML += `<option value="${exp}">${exp}</option>`;
     });
   }
 
-  /* ===========================
-     ITM / OTM
-  =========================== */
-  function itmOtmInfo(option) {
+  function itmOtm(option) {
     if (!currentPrice) return { label: "?", pct: "-" };
+    let diff =
+      option.type === "call"
+        ? currentPrice - option.strike
+        : option.strike - currentPrice;
 
-    let distance, label;
-
-    if (option.type === "call") {
-      distance = ((currentPrice - option.strike) / currentPrice) * 100;
-      label = currentPrice > option.strike ? "ITM" : "OTM";
-    } else {
-      distance = ((option.strike - currentPrice) / currentPrice) * 100;
-      label = currentPrice < option.strike ? "ITM" : "OTM";
-    }
-
-    return { label, pct: distance.toFixed(2) + "%" };
+    return {
+      label: diff > 0 ? "ITM" : "OTM",
+      pct: ((diff / currentPrice) * 100).toFixed(2) + "%"
+    };
   }
 
-  function scoreOption(o) {
-    const askScore = o.ask ? 1 / o.ask : 0;
-    return askScore + (o.volume || 0) * 0.01 + (o.openInterest || 0) * 0.005;
+  function liquidityFlags(o) {
+    let flags = [];
+    if (o.bid !== null && o.ask !== null) {
+      if ((o.ask - o.bid) / o.ask > 0.3) flags.push("🟡 WIDE");
+    }
+    if ((o.volume ?? 0) < 10 || (o.openInterest ?? 0) < 50) {
+      flags.push("🔴 ILLQ");
+    }
+    return flags.join(" ");
   }
 
   function renderOptions() {
@@ -238,8 +201,6 @@ document.addEventListener("DOMContentLoaded", () => {
       filtered = filtered.filter(o => o.ask !== null && o.ask <= maxAsk);
     }
 
-    filtered.sort((a, b) => scoreOption(b) - scoreOption(a));
-
     if (!filtered.length) {
       optionsOutput.innerHTML = "No options match filters";
       return;
@@ -250,22 +211,17 @@ document.addEventListener("DOMContentLoaded", () => {
       <table>
         <thead>
           <tr>
-            <th>Type</th>
-            <th>Strike</th>
-            <th>Exp</th>
-            <th>ITM/OTM</th>
-            <th>%</th>
-            <th>Bid</th>
-            <th>Ask</th>
-            <th>Vol</th>
-            <th>OI</th>
+            <th>Type</th><th>Strike</th><th>Exp</th>
+            <th>ITM</th><th>%</th>
+            <th>Bid</th><th>Ask</th>
+            <th>Vol</th><th>OI</th><th>⚠️</th>
           </tr>
         </thead>
         <tbody>
     `;
 
     filtered.forEach(o => {
-      const io = itmOtmInfo(o);
+      const io = itmOtm(o);
       html += `
         <tr>
           <td>${o.type}</td>
@@ -277,6 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <td><strong>${o.ask ?? "-"}</strong></td>
           <td>${o.volume ?? "-"}</td>
           <td>${o.openInterest ?? "-"}</td>
+          <td>${liquidityFlags(o)}</td>
         </tr>
       `;
     });
@@ -292,17 +249,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   candidatesBtn.onclick = async () => {
     candidatesOutput.innerHTML = "Loading...";
-    optionsOutput.innerHTML = "Click a symbol above";
+    optionsOutput.innerHTML = "Click a symbol";
 
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/candidates`);
-      const data = await res.json();
-      candidatesCache = data.candidates || [];
-      renderCandidates(candidatesCache);
-    } catch (err) {
-      console.error(err);
-      candidatesOutput.innerHTML = "Error loading candidates";
-    }
+    const res = await fetch(`${API_BASE}/api/v1/candidates`);
+    const data = await res.json();
+    candidatesCache = data.candidates || [];
+    renderCandidates(candidatesCache);
   };
 
   applyFilterBtn.onclick = () => {
