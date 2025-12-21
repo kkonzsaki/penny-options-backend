@@ -145,6 +145,8 @@ document.addEventListener("DOMContentLoaded", () => {
             <th>Bid</th>
             <th>Ask</th>
             <th>Last</th>
+            <th>Volume</th>
+            <th>Open Int</th>
           </tr>
         </thead>
         <tbody>
@@ -159,6 +161,8 @@ document.addEventListener("DOMContentLoaded", () => {
           <td>${o.bid ?? "-"}</td>
           <td><strong>${o.ask ?? "-"}</strong></td>
           <td>${o.last ?? "-"}</td>
+          <td>${o.volume ?? "-"}</td>
+          <td>${o.openInterest ?? o.oi ?? "-"}</td>
         </tr>
       `;
     });
@@ -168,7 +172,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* ===========================
-     BUTTON HANDLERS
+     CONTROLS
   =========================== */
   callsBtn.onclick = () => {
     currentType = "CALL";
