@@ -17,7 +17,7 @@
       margin-bottom: 10px;
     }
 
-    input, button {
+    input, select, button {
       padding: 6px 10px;
       margin: 5px 5px 5px 0;
       border-radius: 4px;
@@ -57,7 +57,6 @@
       background-color: #020617;
       position: sticky;
       top: 0;
-      z-index: 2;
     }
 
     tr:hover {
@@ -91,12 +90,16 @@
 
   <h1>Penny Options Scout</h1>
 
-  <!-- OPTIONS OUTPUT -->
+  <!-- OPTIONS -->
   <h2>Options Chain</h2>
 
   <div class="controls">
     <button id="callsBtn" class="active">Calls</button>
     <button id="putsBtn">Puts</button>
+
+    <select id="expirationSelect">
+      <option value="ALL">All Expirations</option>
+    </select>
   </div>
 
   <div id="optionsOutput">Click a symbol below</div>
