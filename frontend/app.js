@@ -10,7 +10,33 @@ let currentPrice = null;
 const WATCHLIST_KEY = "penny_watchlist";
 
 /* ===========================
-   WATCHLIST HELPERS
+   CSV HELPERS
+=========================== */
+function downloadCSV(filename, rows) {
+  if (!rows.length) return alert("Nothing to export");
+
+  const headers = Object.keys(rows[0]);
+  const csv = [
+    headers.join(","),
+    ...rows.map(r =>
+      headers.map(h => `"${r[h] ?? ""}"`).join(",")
+    )
+  ].join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ===========================
+   WATCHLIST STORAGE
 =========================== */
 function getWatchlist() {
   return JSON.parse(localStorage.getItem(WATCHLIST_KEY) || "[]");
@@ -48,8 +74,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const expirationSelect = document.getElementById("expirationSelect");
   const maxAskInput = document.getElementById("maxAsk");
 
+  const exportWatchlistBtn = document.getElementById("exportWatchlist");
+  const exportOptionsBtn = document.getElementById("exportOptions");
+
   /* ===========================
-     WATCHLIST
+     WATCHLIST RENDER
   =========================== */
   function renderWatchlist() {
     const list = getWatchlist();
@@ -57,10 +86,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let html = `
       <h3>⭐ Watchlist</h3>
+      <button id="exportWatchlist">Export Watchlist CSV</button>
       <table>
-        <thead>
-          <tr><th>Symbol</th><th>Price</th><th></th></tr>
-        </thead>
+        <thead><tr><th>Symbol</th><th>Price</th><th></th></tr></thead>
         <tbody>
     `;
 
@@ -75,8 +103,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     html += "</tbody></table><hr />";
-
     candidatesOutput.innerHTML = html + candidatesOutput.innerHTML;
+
+    document.getElementById("exportWatchlist").onclick = () =>
+      downloadCSV("watchlist.csv", getWatchlist());
 
     document.querySelectorAll(".watch-symbol").forEach(l =>
       l.addEventListener("click", loadOptionsChain)
@@ -103,9 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let html = `
       <table>
-        <thead>
-          <tr><th>⭐</th><th>Symbol</th><th>Price</th></tr>
-        </thead>
+        <thead><tr><th>⭐</th><th>Symbol</th><th>Price</th></tr></thead>
         <tbody>
     `;
 
@@ -141,19 +169,14 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     currentSymbol = e.target.dataset.symbol;
     currentPrice = parseFloat(e.target.dataset.price);
-
     optionsOutput.innerHTML = `Loading ${currentSymbol} options...`;
 
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/options/${currentSymbol}`);
-      const data = await res.json();
-      currentOptions = data.options || [];
+    const res = await fetch(`${API_BASE}/api/v1/options/${currentSymbol}`);
+    const data = await res.json();
+    currentOptions = data.options || [];
 
-      buildExpirationDropdown(currentOptions);
-      renderOptions();
-    } catch {
-      optionsOutput.innerHTML = "Error loading options";
-    }
+    buildExpirationDropdown(currentOptions);
+    renderOptions();
   }
 
   function buildExpirationDropdown(options) {
@@ -161,30 +184,6 @@ document.addEventListener("DOMContentLoaded", () => {
     [...new Set(options.map(o => o.expiration))].forEach(exp => {
       expirationSelect.innerHTML += `<option value="${exp}">${exp}</option>`;
     });
-  }
-
-  function itmOtm(option) {
-    if (!currentPrice) return { label: "?", pct: "-" };
-    let diff =
-      option.type === "call"
-        ? currentPrice - option.strike
-        : option.strike - currentPrice;
-
-    return {
-      label: diff > 0 ? "ITM" : "OTM",
-      pct: ((diff / currentPrice) * 100).toFixed(2) + "%"
-    };
-  }
-
-  function liquidityFlags(o) {
-    let flags = [];
-    if (o.bid !== null && o.ask !== null) {
-      if ((o.ask - o.bid) / o.ask > 0.3) flags.push("🟡 WIDE");
-    }
-    if ((o.volume ?? 0) < 10 || (o.openInterest ?? 0) < 50) {
-      flags.push("🔴 ILLQ");
-    }
-    return flags.join(" ");
   }
 
   function renderOptions() {
@@ -207,39 +206,49 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     let html = `
-      <h3>${currentSymbol} ${currentType}s (Price: ${currentPrice})</h3>
+      <h3>${currentSymbol} Options</h3>
+      <button id="exportOptions">Export Options CSV</button>
       <table>
         <thead>
           <tr>
             <th>Type</th><th>Strike</th><th>Exp</th>
-            <th>ITM</th><th>%</th>
-            <th>Bid</th><th>Ask</th>
-            <th>Vol</th><th>OI</th><th>⚠️</th>
+            <th>Bid</th><th>Ask</th><th>Vol</th><th>OI</th>
           </tr>
         </thead>
         <tbody>
     `;
 
     filtered.forEach(o => {
-      const io = itmOtm(o);
       html += `
         <tr>
           <td>${o.type}</td>
           <td>${o.strike}</td>
           <td>${o.expiration}</td>
-          <td>${io.label}</td>
-          <td>${io.pct}</td>
           <td>${o.bid ?? "-"}</td>
-          <td><strong>${o.ask ?? "-"}</strong></td>
+          <td>${o.ask ?? "-"}</td>
           <td>${o.volume ?? "-"}</td>
           <td>${o.openInterest ?? "-"}</td>
-          <td>${liquidityFlags(o)}</td>
         </tr>
       `;
     });
 
     html += "</tbody></table>";
     optionsOutput.innerHTML = html;
+
+    document.getElementById("exportOptions").onclick = () =>
+      downloadCSV(
+        `${currentSymbol}_options.csv`,
+        filtered.map(o => ({
+          symbol: currentSymbol,
+          type: o.type,
+          strike: o.strike,
+          expiration: o.expiration,
+          bid: o.bid,
+          ask: o.ask,
+          volume: o.volume,
+          openInterest: o.openInterest
+        }))
+      );
   }
 
   callsBtn.onclick = () => { currentType = "CALL"; renderOptions(); };
@@ -249,8 +258,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   candidatesBtn.onclick = async () => {
     candidatesOutput.innerHTML = "Loading...";
-    optionsOutput.innerHTML = "Click a symbol";
-
     const res = await fetch(`${API_BASE}/api/v1/candidates`);
     const data = await res.json();
     candidatesCache = data.candidates || [];
