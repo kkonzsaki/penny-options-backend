@@ -6,8 +6,8 @@ console.log("Frontend loaded");
 let candidatesCache = [];
 let currentOptions = [];
 let currentSymbol = "";
-let currentOptionType = "call"; // call | put
-let sortDirection = "asc";
+let currentOptionType = "call";
+let currentExpiration = "ALL";
 
 /* ================================
    DOM READY
@@ -23,6 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const callsBtn = document.getElementById("callsBtn");
   const putsBtn = document.getElementById("putsBtn");
+  const expirationSelect = document.getElementById("expirationSelect");
 
   /* ================================
      OPTION TYPE TOGGLE
@@ -31,14 +32,19 @@ document.addEventListener("DOMContentLoaded", () => {
     currentOptionType = "call";
     callsBtn.classList.add("active");
     putsBtn.classList.remove("active");
-    if (currentOptions.length) renderOptions();
+    renderOptions();
   };
 
   putsBtn.onclick = () => {
     currentOptionType = "put";
     putsBtn.classList.add("active");
     callsBtn.classList.remove("active");
-    if (currentOptions.length) renderOptions();
+    renderOptions();
+  };
+
+  expirationSelect.onchange = () => {
+    currentExpiration = expirationSelect.value;
+    renderOptions();
   };
 
   /* ================================
@@ -74,27 +80,12 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
     });
 
-    html += `
-        </tbody>
-      </table>
-    `;
-
+    html += `</tbody></table>`;
     candidatesOutput.innerHTML = html;
 
     document.querySelectorAll(".symbol-link").forEach(link => {
       link.addEventListener("click", loadOptionsChain);
     });
-  }
-
-  /* ================================
-     SORT CANDIDATES
-  ================================ */
-  function sortCandidates() {
-    candidatesCache.sort((a, b) =>
-      sortDirection === "asc" ? a.price - b.price : b.price - a.price
-    );
-    sortDirection = sortDirection === "asc" ? "desc" : "asc";
-    renderCandidates(candidatesCache);
   }
 
   /* ================================
@@ -110,13 +101,14 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) throw new Error("Options fetch failed");
 
       const data = await res.json();
-      currentOptions = data.options || data.calls || [];
+      currentOptions = data.options || [];
 
       if (!currentOptions.length) {
         optionsOutput.innerHTML = "No options returned";
         return;
       }
 
+      populateExpirations();
       renderOptions();
 
     } catch (err) {
@@ -126,20 +118,41 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* ================================
-     RENDER OPTIONS (CALL / PUT)
+     EXPIRATION DROPDOWN
+  ================================ */
+  function populateExpirations() {
+    const expirations = [...new Set(currentOptions.map(o => o.expiration))];
+
+    expirationSelect.innerHTML =
+      `<option value="ALL">All Expirations</option>` +
+      expirations.map(exp =>
+        `<option value="${exp}">${exp}</option>`
+      ).join("");
+
+    currentExpiration = "ALL";
+  }
+
+  /* ================================
+     RENDER OPTIONS
   ================================ */
   function renderOptions() {
-    const filtered = currentOptions.filter(opt =>
-      opt.type?.toLowerCase() === currentOptionType
+    if (!currentOptions.length) return;
+
+    let filtered = currentOptions.filter(o =>
+      o.type?.toLowerCase() === currentOptionType
     );
 
+    if (currentExpiration !== "ALL") {
+      filtered = filtered.filter(o => o.expiration === currentExpiration);
+    }
+
     if (!filtered.length) {
-      optionsOutput.innerHTML = `No ${currentOptionType.toUpperCase()} options`;
+      optionsOutput.innerHTML = "No options match filters";
       return;
     }
 
     let html = `
-      <h3>${currentSymbol} ${currentOptionType.toUpperCase()}S</h3>
+      <h3>${currentSymbol} ${currentOptionType.toUpperCase()}</h3>
       <table>
         <thead>
           <tr>
@@ -153,23 +166,19 @@ document.addEventListener("DOMContentLoaded", () => {
         <tbody>
     `;
 
-    filtered.forEach(opt => {
+    filtered.forEach(o => {
       html += `
         <tr>
-          <td>${opt.strike}</td>
-          <td>${opt.expiration}</td>
-          <td>${opt.last ?? "-"}</td>
-          <td>${opt.bid ?? "-"}</td>
-          <td>${opt.ask ?? "-"}</td>
+          <td>${o.strike}</td>
+          <td>${o.expiration}</td>
+          <td>${o.last ?? "-"}</td>
+          <td>${o.bid ?? "-"}</td>
+          <td>${o.ask ?? "-"}</td>
         </tr>
       `;
     });
 
-    html += `
-        </tbody>
-      </table>
-    `;
-
+    html += `</tbody></table>`;
     optionsOutput.innerHTML = html;
   }
 
@@ -182,14 +191,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/candidates`);
-      if (!res.ok) throw new Error("Candidates fetch failed");
-
       const data = await res.json();
       candidatesCache = data.candidates || [];
-      sortCandidates();
-
-    } catch (err) {
-      console.error(err);
+      renderCandidates(candidatesCache);
+    } catch {
       candidatesOutput.innerHTML = "Error loading candidates";
     }
   };
@@ -198,15 +203,11 @@ document.addEventListener("DOMContentLoaded", () => {
      PRICE FILTER
   ================================ */
   applyFilterBtn.onclick = () => {
-    if (!candidatesCache.length) return;
-
     const min = parseFloat(minPriceInput.value) || 0;
     const max = parseFloat(maxPriceInput.value) || Infinity;
 
-    const filtered = candidatesCache.filter(c =>
-      c.price >= min && c.price <= max
+    renderCandidates(
+      candidatesCache.filter(c => c.price >= min && c.price <= max)
     );
-
-    renderCandidates(filtered);
   };
 });
