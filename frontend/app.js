@@ -10,7 +10,7 @@ let currentPrice = null;
 const WATCHLIST_KEY = "penny_watchlist";
 
 /* ===========================
-   CSV HELPERS
+   CSV HELPER
 =========================== */
 function downloadCSV(filename, rows) {
   if (!rows.length) return alert("Nothing to export");
@@ -18,9 +18,7 @@ function downloadCSV(filename, rows) {
   const headers = Object.keys(rows[0]);
   const csv = [
     headers.join(","),
-    ...rows.map(r =>
-      headers.map(h => `"${r[h] ?? ""}"`).join(",")
-    )
+    ...rows.map(r => headers.map(h => `"${r[h] ?? ""}"`).join(","))
   ].join("\n");
 
   const blob = new Blob([csv], { type: "text/csv" });
@@ -50,14 +48,31 @@ function toggleWatchlist(symbol, price) {
   let list = getWatchlist();
   const exists = list.find(s => s.symbol === symbol);
 
-  if (exists) {
-    list = list.filter(s => s.symbol !== symbol);
-  } else {
-    list.push({ symbol, price });
-  }
+  if (exists) list = list.filter(s => s.symbol !== symbol);
+  else list.push({ symbol, price });
 
   saveWatchlist(list);
   renderWatchlist();
+}
+
+/* ===========================
+   SCORING ENGINE (STEP 12)
+=========================== */
+function scoreOption(o) {
+  const bid = o.bid ?? 0;
+  const ask = o.ask ?? 999;
+  const spread = ask - bid;
+  const volume = o.volume ?? 0;
+  const oi = o.openInterest ?? 0;
+
+  if (ask <= 0 || spread < 0) return -999;
+
+  return (
+    volume * 0.3 +
+    oi * 0.3 -
+    spread * 2 -
+    ask * 1.5
+  );
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -74,9 +89,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const expirationSelect = document.getElementById("expirationSelect");
   const maxAskInput = document.getElementById("maxAsk");
 
-  const exportWatchlistBtn = document.getElementById("exportWatchlist");
-  const exportOptionsBtn = document.getElementById("exportOptions");
-
   /* ===========================
      WATCHLIST RENDER
   =========================== */
@@ -86,7 +98,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let html = `
       <h3>⭐ Watchlist</h3>
-      <button id="exportWatchlist">Export Watchlist CSV</button>
       <table>
         <thead><tr><th>Symbol</th><th>Price</th><th></th></tr></thead>
         <tbody>
@@ -105,9 +116,6 @@ document.addEventListener("DOMContentLoaded", () => {
     html += "</tbody></table><hr />";
     candidatesOutput.innerHTML = html + candidatesOutput.innerHTML;
 
-    document.getElementById("exportWatchlist").onclick = () =>
-      downloadCSV("watchlist.csv", getWatchlist());
-
     document.querySelectorAll(".watch-symbol").forEach(l =>
       l.addEventListener("click", loadOptionsChain)
     );
@@ -124,18 +132,13 @@ document.addEventListener("DOMContentLoaded", () => {
      CANDIDATES
   =========================== */
   function renderCandidates(data) {
-    if (!data.length) {
-      candidatesOutput.innerHTML = "No candidates returned";
-      return;
-    }
-
-    const watchlist = getWatchlist();
-
     let html = `
       <table>
         <thead><tr><th>⭐</th><th>Symbol</th><th>Price</th></tr></thead>
         <tbody>
     `;
+
+    const watchlist = getWatchlist();
 
     data.forEach(c => {
       const starred = watchlist.some(w => w.symbol === c.symbol) ? "★" : "☆";
@@ -163,25 +166,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* ===========================
-     OPTIONS
+     OPTIONS + BEST PLAYS
   =========================== */
   async function loadOptionsChain(e) {
     e.preventDefault();
     currentSymbol = e.target.dataset.symbol;
     currentPrice = parseFloat(e.target.dataset.price);
-    optionsOutput.innerHTML = `Loading ${currentSymbol} options...`;
+    optionsOutput.innerHTML = "Loading options...";
 
     const res = await fetch(`${API_BASE}/api/v1/options/${currentSymbol}`);
     const data = await res.json();
     currentOptions = data.options || [];
 
-    buildExpirationDropdown(currentOptions);
+    buildExpirationDropdown();
     renderOptions();
   }
 
-  function buildExpirationDropdown(options) {
+  function buildExpirationDropdown() {
     expirationSelect.innerHTML = `<option value="ALL">All Expirations</option>`;
-    [...new Set(options.map(o => o.expiration))].forEach(exp => {
+    [...new Set(currentOptions.map(o => o.expiration))].forEach(exp => {
       expirationSelect.innerHTML += `<option value="${exp}">${exp}</option>`;
     });
   }
@@ -205,9 +208,40 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    // ===== BEST PLAYS (TOP 3) =====
+    const ranked = [...filtered]
+      .map(o => ({ ...o, score: scoreOption(o) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
     let html = `
-      <h3>${currentSymbol} Options</h3>
-      <button id="exportOptions">Export Options CSV</button>
+      <h3>🏆 Best Plays (${currentSymbol})</h3>
+      <table>
+        <thead>
+          <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th><th>Vol</th><th>OI</th><th>Score</th></tr>
+        </thead>
+        <tbody>
+    `;
+
+    ranked.forEach(o => {
+      html += `
+        <tr style="background:#14532d;">
+          <td>${o.type}</td>
+          <td>${o.strike}</td>
+          <td>${o.expiration}</td>
+          <td>${o.ask}</td>
+          <td>${o.volume ?? "-"}</td>
+          <td>${o.openInterest ?? "-"}</td>
+          <td>${o.score.toFixed(1)}</td>
+        </tr>
+      `;
+    });
+
+    html += "</tbody></table><hr />";
+
+    // ===== FULL OPTIONS TABLE =====
+    html += `
+      <h3>All Options</h3>
       <table>
         <thead>
           <tr>
@@ -234,21 +268,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     html += "</tbody></table>";
     optionsOutput.innerHTML = html;
-
-    document.getElementById("exportOptions").onclick = () =>
-      downloadCSV(
-        `${currentSymbol}_options.csv`,
-        filtered.map(o => ({
-          symbol: currentSymbol,
-          type: o.type,
-          strike: o.strike,
-          expiration: o.expiration,
-          bid: o.bid,
-          ask: o.ask,
-          volume: o.volume,
-          openInterest: o.openInterest
-        }))
-      );
   }
 
   callsBtn.onclick = () => { currentType = "CALL"; renderOptions(); };
@@ -257,7 +276,6 @@ document.addEventListener("DOMContentLoaded", () => {
   maxAskInput.oninput = renderOptions;
 
   candidatesBtn.onclick = async () => {
-    candidatesOutput.innerHTML = "Loading...";
     const res = await fetch(`${API_BASE}/api/v1/candidates`);
     const data = await res.json();
     candidatesCache = data.candidates || [];
