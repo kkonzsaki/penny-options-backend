@@ -6,35 +6,12 @@ let currentSymbol = "";
 let currentType = "CALL";
 let currentExpiration = "ALL";
 let currentPrice = null;
+let activeStrategy = "ALL";
 
 const WATCHLIST_KEY = "penny_watchlist";
 
 /* ===========================
-   CSV HELPER
-=========================== */
-function downloadCSV(filename, rows) {
-  if (!rows.length) return alert("Nothing to export");
-
-  const headers = Object.keys(rows[0]);
-  const csv = [
-    headers.join(","),
-    ...rows.map(r => headers.map(h => `"${r[h] ?? ""}"`).join(","))
-  ].join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-/* ===========================
-   WATCHLIST STORAGE
+   STORAGE
 =========================== */
 function getWatchlist() {
   return JSON.parse(localStorage.getItem(WATCHLIST_KEY) || "[]");
@@ -44,19 +21,8 @@ function saveWatchlist(list) {
   localStorage.setItem(WATCHLIST_KEY, JSON.stringify(list));
 }
 
-function toggleWatchlist(symbol, price) {
-  let list = getWatchlist();
-  const exists = list.find(s => s.symbol === symbol);
-
-  if (exists) list = list.filter(s => s.symbol !== symbol);
-  else list.push({ symbol, price });
-
-  saveWatchlist(list);
-  renderWatchlist();
-}
-
 /* ===========================
-   SCORING ENGINE (STEP 12)
+   SCORING ENGINE
 =========================== */
 function scoreOption(o) {
   const bid = o.bid ?? 0;
@@ -75,6 +41,35 @@ function scoreOption(o) {
   );
 }
 
+/* ===========================
+   STRATEGY FILTERS (STEP 13)
+=========================== */
+function applyStrategy(options) {
+  if (activeStrategy === "SCALP") {
+    return options.filter(o =>
+      o.ask <= 1.0 &&
+      (o.volume ?? 0) > 100 &&
+      Math.abs(o.strike - currentPrice) <= currentPrice * 0.05
+    );
+  }
+
+  if (activeStrategy === "LOTTO") {
+    return options.filter(o =>
+      o.ask <= 0.30 &&
+      Math.abs(o.strike - currentPrice) >= currentPrice * 0.15
+    );
+  }
+
+  if (activeStrategy === "SWING") {
+    return options.filter(o =>
+      (o.openInterest ?? 0) > 200 &&
+      o.ask <= 3.0
+    );
+  }
+
+  return options;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
@@ -89,44 +84,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const expirationSelect = document.getElementById("expirationSelect");
   const maxAskInput = document.getElementById("maxAsk");
 
-  /* ===========================
-     WATCHLIST RENDER
-  =========================== */
-  function renderWatchlist() {
-    const list = getWatchlist();
-    if (!list.length) return;
-
-    let html = `
-      <h3>⭐ Watchlist</h3>
-      <table>
-        <thead><tr><th>Symbol</th><th>Price</th><th></th></tr></thead>
-        <tbody>
-    `;
-
-    list.forEach(item => {
-      html += `
-        <tr>
-          <td><a href="#" class="watch-symbol" data-symbol="${item.symbol}" data-price="${item.price}">${item.symbol}</a></td>
-          <td>${item.price}</td>
-          <td><button data-remove="${item.symbol}">✕</button></td>
-        </tr>
-      `;
-    });
-
-    html += "</tbody></table><hr />";
-    candidatesOutput.innerHTML = html + candidatesOutput.innerHTML;
-
-    document.querySelectorAll(".watch-symbol").forEach(l =>
-      l.addEventListener("click", loadOptionsChain)
-    );
-
-    document.querySelectorAll("button[data-remove]").forEach(btn => {
-      btn.onclick = () => {
-        saveWatchlist(getWatchlist().filter(s => s.symbol !== btn.dataset.remove));
-        renderWatchlist();
-      };
-    });
-  }
+  // Strategy buttons (safe if missing)
+  const scalpBtn = document.getElementById("scalpBtn");
+  const lottoBtn = document.getElementById("lottoBtn");
+  const swingBtn = document.getElementById("swingBtn");
 
   /* ===========================
      CANDIDATES
@@ -134,18 +95,20 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderCandidates(data) {
     let html = `
       <table>
-        <thead><tr><th>⭐</th><th>Symbol</th><th>Price</th></tr></thead>
+        <thead><tr><th>Symbol</th><th>Price</th></tr></thead>
         <tbody>
     `;
 
-    const watchlist = getWatchlist();
-
     data.forEach(c => {
-      const starred = watchlist.some(w => w.symbol === c.symbol) ? "★" : "☆";
       html += `
         <tr>
-          <td><button class="star-btn" data-symbol="${c.symbol}" data-price="${c.price}">${starred}</button></td>
-          <td><a href="#" class="symbol-link" data-symbol="${c.symbol}" data-price="${c.price}">${c.symbol}</a></td>
+          <td>
+            <a href="#" class="symbol-link"
+               data-symbol="${c.symbol}"
+               data-price="${c.price}">
+               ${c.symbol}
+            </a>
+          </td>
           <td>${c.price}</td>
         </tr>
       `;
@@ -154,24 +117,19 @@ document.addEventListener("DOMContentLoaded", () => {
     html += "</tbody></table>";
     candidatesOutput.innerHTML = html;
 
-    renderWatchlist();
-
     document.querySelectorAll(".symbol-link").forEach(l =>
       l.addEventListener("click", loadOptionsChain)
-    );
-
-    document.querySelectorAll(".star-btn").forEach(b =>
-      b.onclick = () => toggleWatchlist(b.dataset.symbol, b.dataset.price)
     );
   }
 
   /* ===========================
-     OPTIONS + BEST PLAYS
+     OPTIONS
   =========================== */
   async function loadOptionsChain(e) {
     e.preventDefault();
     currentSymbol = e.target.dataset.symbol;
     currentPrice = parseFloat(e.target.dataset.price);
+
     optionsOutput.innerHTML = "Loading options...";
 
     const res = await fetch(`${API_BASE}/api/v1/options/${currentSymbol}`);
@@ -183,7 +141,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function buildExpirationDropdown() {
-    expirationSelect.innerHTML = `<option value="ALL">All Expirations</option>`;
+    expirationSelect.innerHTML = `<option value="ALL">All</option>`;
     [...new Set(currentOptions.map(o => o.expiration))].forEach(exp => {
       expirationSelect.innerHTML += `<option value="${exp}">${exp}</option>`;
     });
@@ -203,22 +161,26 @@ document.addEventListener("DOMContentLoaded", () => {
       filtered = filtered.filter(o => o.ask !== null && o.ask <= maxAsk);
     }
 
+    filtered = applyStrategy(filtered);
+
     if (!filtered.length) {
       optionsOutput.innerHTML = "No options match filters";
       return;
     }
 
-    // ===== BEST PLAYS (TOP 3) =====
     const ranked = [...filtered]
       .map(o => ({ ...o, score: scoreOption(o) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 3);
 
     let html = `
-      <h3>🏆 Best Plays (${currentSymbol})</h3>
+      <h3>🏆 Best Plays — ${activeStrategy}</h3>
       <table>
         <thead>
-          <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th><th>Vol</th><th>OI</th><th>Score</th></tr>
+          <tr>
+            <th>Type</th><th>Strike</th><th>Exp</th>
+            <th>Ask</th><th>Vol</th><th>OI</th><th>Score</th>
+          </tr>
         </thead>
         <tbody>
     `;
@@ -237,43 +199,26 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
     });
 
-    html += "</tbody></table><hr />";
-
-    // ===== FULL OPTIONS TABLE =====
-    html += `
-      <h3>All Options</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Type</th><th>Strike</th><th>Exp</th>
-            <th>Bid</th><th>Ask</th><th>Vol</th><th>OI</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
-
-    filtered.forEach(o => {
-      html += `
-        <tr>
-          <td>${o.type}</td>
-          <td>${o.strike}</td>
-          <td>${o.expiration}</td>
-          <td>${o.bid ?? "-"}</td>
-          <td>${o.ask ?? "-"}</td>
-          <td>${o.volume ?? "-"}</td>
-          <td>${o.openInterest ?? "-"}</td>
-        </tr>
-      `;
-    });
-
     html += "</tbody></table>";
     optionsOutput.innerHTML = html;
   }
 
-  callsBtn.onclick = () => { currentType = "CALL"; renderOptions(); };
-  putsBtn.onclick = () => { currentType = "PUT"; renderOptions(); };
-  expirationSelect.onchange = () => { currentExpiration = expirationSelect.value; renderOptions(); };
+  /* ===========================
+     BUTTONS
+  =========================== */
+  callsBtn && (callsBtn.onclick = () => { currentType = "CALL"; renderOptions(); });
+  putsBtn && (putsBtn.onclick = () => { currentType = "PUT"; renderOptions(); });
+
+  expirationSelect.onchange = () => {
+    currentExpiration = expirationSelect.value;
+    renderOptions();
+  };
+
   maxAskInput.oninput = renderOptions;
+
+  scalpBtn && (scalpBtn.onclick = () => { activeStrategy = "SCALP"; renderOptions(); });
+  lottoBtn && (lottoBtn.onclick = () => { activeStrategy = "LOTTO"; renderOptions(); });
+  swingBtn && (swingBtn.onclick = () => { activeStrategy = "SWING"; renderOptions(); });
 
   candidatesBtn.onclick = async () => {
     const res = await fetch(`${API_BASE}/api/v1/candidates`);
