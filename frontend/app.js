@@ -1,58 +1,100 @@
 console.log("Frontend loaded");
 
+/* ===========================
+   GLOBAL STATE
+=========================== */
 let candidatesCache = [];
 let currentOptions = [];
 let currentSymbol = "";
-let currentType = "CALL";
-let currentExpiration = "ALL";
 let currentPrice = null;
-let activeStrategy = "ALL";
 let selectedOption = null;
 
+let watchlist = JSON.parse(localStorage.getItem("watchlist") || "[]");
+let savedTrades = JSON.parse(localStorage.getItem("savedTrades") || "[]");
+
 /* ===========================
-   OPTION SCORING
+   STORAGE HELPERS
 =========================== */
-function scoreOption(o) {
-  const bid = o.bid ?? 0;
-  const ask = o.ask ?? 999;
-  const spread = ask - bid;
-  const volume = o.volume ?? 0;
-  const oi = o.openInterest ?? 0;
-
-  if (ask <= 0 || spread < 0) return -999;
-
-  return volume * 0.3 + oi * 0.3 - spread * 2 - ask * 1.5;
+function saveState() {
+  localStorage.setItem("watchlist", JSON.stringify(watchlist));
+  localStorage.setItem("savedTrades", JSON.stringify(savedTrades));
 }
 
 /* ===========================
-   STRATEGY FILTERS
+   WATCHLIST RENDER
 =========================== */
-function applyStrategy(options) {
-  if (!currentPrice) return options;
+function renderWatchlist() {
+  const out = document.getElementById("watchlistOutput");
+  if (!out) return;
 
-  if (activeStrategy === "SCALP") {
-    return options.filter(o =>
-      o.ask <= 1 &&
-      (o.volume ?? 0) > 100 &&
-      Math.abs(o.strike - currentPrice) <= currentPrice * 0.05
-    );
+  if (watchlist.length === 0) {
+    out.innerHTML = "Watchlist empty";
+    return;
   }
 
-  if (activeStrategy === "LOTTO") {
-    return options.filter(o =>
-      o.ask <= 0.3 &&
-      Math.abs(o.strike - currentPrice) >= currentPrice * 0.15
-    );
+  let html = `<table><tr><th>Symbol</th><th></th></tr>`;
+  watchlist.forEach((s, i) => {
+    html += `
+      <tr>
+        <td>${s}</td>
+        <td><button data-i="${i}" class="remove-watch">✖</button></td>
+      </tr>`;
+  });
+  html += "</table>";
+  out.innerHTML = html;
+
+  document.querySelectorAll(".remove-watch").forEach(btn => {
+    btn.onclick = () => {
+      watchlist.splice(btn.dataset.i, 1);
+      saveState();
+      renderWatchlist();
+    };
+  });
+}
+
+/* ===========================
+   SAVED TRADES RENDER
+=========================== */
+function renderSavedTrades() {
+  const out = document.getElementById("savedTradesOutput");
+  if (!out) return;
+
+  if (savedTrades.length === 0) {
+    out.innerHTML = "No saved trades";
+    return;
   }
 
-  if (activeStrategy === "SWING") {
-    return options.filter(o =>
-      (o.openInterest ?? 0) > 200 &&
-      o.ask <= 3
-    );
-  }
+  let html = `
+    <table>
+      <tr>
+        <th>Symbol</th><th>Type</th><th>Strike</th>
+        <th>Exp</th><th>Cost</th><th></th>
+      </tr>
+  `;
 
-  return options;
+  savedTrades.forEach((t, i) => {
+    html += `
+      <tr>
+        <td>${t.symbol}</td>
+        <td>${t.type}</td>
+        <td>${t.strike}</td>
+        <td>${t.exp}</td>
+        <td>$${t.cost.toFixed(2)}</td>
+        <td><button data-i="${i}" class="remove-trade">✖</button></td>
+      </tr>
+    `;
+  });
+
+  html += "</table>";
+  out.innerHTML = html;
+
+  document.querySelectorAll(".remove-trade").forEach(btn => {
+    btn.onclick = () => {
+      savedTrades.splice(btn.dataset.i, 1);
+      saveState();
+      renderSavedTrades();
+    };
+  });
 }
 
 /* ===========================
@@ -64,66 +106,50 @@ function renderTradeBuilder() {
 
   const ask = selectedOption.ask;
   const strike = selectedOption.strike;
-  const contracts = 1;
-  const cost = ask * 100 * contracts;
+  const cost = ask * 100;
 
-  let breakeven;
-  if (selectedOption.type === "call") {
-    breakeven = strike + ask;
-  } else {
-    breakeven = strike - ask;
-  }
-
-  const targetMove = currentPrice * 0.05;
-  const targetPrice =
+  const breakeven =
     selectedOption.type === "call"
-      ? currentPrice + targetMove
-      : currentPrice - targetMove;
-
-  const intrinsic =
-    selectedOption.type === "call"
-      ? Math.max(0, targetPrice - strike)
-      : Math.max(0, strike - targetPrice);
-
-  const estValue = intrinsic * 100;
-  const pnl = estValue - cost;
-  const pct = ((pnl / cost) * 100).toFixed(1);
+      ? strike + ask
+      : strike - ask;
 
   out.innerHTML = `
-    <h3>🧮 Trade Builder</h3>
-    <table>
-      <tr><td>Symbol</td><td>${currentSymbol}</td></tr>
-      <tr><td>Type</td><td>${selectedOption.type.toUpperCase()}</td></tr>
-      <tr><td>Strike</td><td>${strike}</td></tr>
-      <tr><td>Ask</td><td>$${ask}</td></tr>
-      <tr><td>Cost</td><td>$${cost.toFixed(2)}</td></tr>
-      <tr><td>Breakeven</td><td>$${breakeven.toFixed(2)}</td></tr>
-      <tr><td>Max Loss</td><td>$${cost.toFixed(2)}</td></tr>
-      <tr><td>Est % Return (±5%)</td>
-          <td style="color:${pct >= 0 ? '#22c55e' : '#ef4444'}">
-            ${pct}%
-          </td>
-      </tr>
-    </table>
+    <h3>Trade Builder</h3>
+    <p><b>${currentSymbol}</b> ${selectedOption.type.toUpperCase()}</p>
+    <p>Strike: ${strike}</p>
+    <p>Ask: $${ask}</p>
+    <p>Cost: $${cost.toFixed(2)}</p>
+    <p>Breakeven: $${breakeven.toFixed(2)}</p>
+    <button id="saveTradeBtn">💾 Save Trade</button>
   `;
+
+  document.getElementById("saveTradeBtn").onclick = () => {
+    savedTrades.push({
+      symbol: currentSymbol,
+      type: selectedOption.type,
+      strike,
+      exp: selectedOption.expiration,
+      cost
+    });
+    saveState();
+    renderSavedTrades();
+  };
 }
 
+/* ===========================
+   MAIN
+=========================== */
 document.addEventListener("DOMContentLoaded", () => {
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
   const optionsOutput = document.getElementById("optionsOutput");
 
-  const callsBtn = document.getElementById("callsBtn");
-  const putsBtn = document.getElementById("putsBtn");
-  const expirationSelect = document.getElementById("expirationSelect");
-  const maxAskInput = document.getElementById("maxAsk");
-
-  const scalpBtn = document.getElementById("scalpBtn");
-  const lottoBtn = document.getElementById("lottoBtn");
-  const swingBtn = document.getElementById("swingBtn");
-
   function renderCandidates(data) {
-    let html = `<table><thead><tr><th>Symbol</th><th>Price</th></tr></thead><tbody>`;
+    let html = `
+      <table>
+        <tr><th>Symbol</th><th>Price</th><th></th></tr>
+    `;
+
     data.forEach(c => {
       html += `
         <tr>
@@ -135,15 +161,26 @@ document.addEventListener("DOMContentLoaded", () => {
             </a>
           </td>
           <td>${c.price}</td>
+          <td><button class="add-watch" data-symbol="${c.symbol}">⭐</button></td>
         </tr>
       `;
     });
-    html += "</tbody></table>";
+
+    html += "</table>";
     candidatesOutput.innerHTML = html;
 
     document.querySelectorAll(".symbol-link").forEach(l =>
       l.onclick = loadOptionsChain
     );
+
+    document.querySelectorAll(".add-watch").forEach(b => {
+      b.onclick = () => {
+        const s = b.dataset.symbol;
+        if (!watchlist.includes(s)) watchlist.push(s);
+        saveState();
+        renderWatchlist();
+      };
+    });
   }
 
   async function loadOptionsChain(e) {
@@ -152,72 +189,32 @@ document.addEventListener("DOMContentLoaded", () => {
     currentPrice = parseFloat(e.target.dataset.price);
     selectedOption = null;
 
-    optionsOutput.innerHTML = "Loading options...";
-
     const res = await fetch(`${API_BASE}/api/v1/options/${currentSymbol}`);
     const data = await res.json();
     currentOptions = data.options || [];
 
-    expirationSelect.innerHTML = `<option value="ALL">All</option>`;
-    [...new Set(currentOptions.map(o => o.expiration))].forEach(exp => {
-      expirationSelect.innerHTML += `<option value="${exp}">${exp}</option>`;
-    });
-
-    renderOptions();
-  }
-
-  function renderOptions() {
-    let opts = currentOptions.filter(o =>
-      currentType === "CALL" ? o.type === "call" : o.type === "put"
-    );
-
-    if (currentExpiration !== "ALL") {
-      opts = opts.filter(o => o.expiration === currentExpiration);
-    }
-
-    const maxAsk = parseFloat(maxAskInput.value);
-    if (!isNaN(maxAsk)) {
-      opts = opts.filter(o => o.ask && o.ask <= maxAsk);
-    }
-
-    opts = applyStrategy(opts);
-
-    opts = opts
-      .map(o => ({ ...o, score: scoreOption(o) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 10);
-
     let html = `
       <table>
-        <thead>
-          <tr>
-            <th>Type</th><th>Strike</th><th>Exp</th>
-            <th>Ask</th><th>Vol</th><th>OI</th><th>Score</th>
-          </tr>
-        </thead>
-        <tbody>
+        <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th></tr>
     `;
 
-    opts.forEach(o => {
+    currentOptions.slice(0, 10).forEach((o, i) => {
       html += `
-        <tr class="option-row" style="cursor:pointer">
+        <tr class="opt" data-i="${i}" style="cursor:pointer">
           <td>${o.type}</td>
           <td>${o.strike}</td>
           <td>${o.expiration}</td>
           <td>${o.ask}</td>
-          <td>${o.volume ?? "-"}</td>
-          <td>${o.openInterest ?? "-"}</td>
-          <td>${o.score.toFixed(1)}</td>
         </tr>
       `;
     });
 
-    html += "</tbody></table>";
+    html += "</table>";
     optionsOutput.innerHTML = html;
 
-    document.querySelectorAll(".option-row").forEach((row, i) => {
-      row.onclick = () => {
-        selectedOption = opts[i];
+    document.querySelectorAll(".opt").forEach(r => {
+      r.onclick = () => {
+        selectedOption = currentOptions[r.dataset.i];
         renderTradeBuilder();
       };
     });
@@ -230,15 +227,6 @@ document.addEventListener("DOMContentLoaded", () => {
     renderCandidates(candidatesCache);
   };
 
-  callsBtn && (callsBtn.onclick = () => { currentType = "CALL"; renderOptions(); });
-  putsBtn && (putsBtn.onclick = () => { currentType = "PUT"; renderOptions(); });
-  expirationSelect.onchange = () => {
-    currentExpiration = expirationSelect.value;
-    renderOptions();
-  };
-  maxAskInput.oninput = renderOptions;
-
-  scalpBtn && (scalpBtn.onclick = () => { activeStrategy = "SCALP"; renderOptions(); });
-  lottoBtn && (lottoBtn.onclick = () => { activeStrategy = "LOTTO"; renderOptions(); });
-  swingBtn && (swingBtn.onclick = () => { activeStrategy = "SWING"; renderOptions(); });
+  renderWatchlist();
+  renderSavedTrades();
 });
