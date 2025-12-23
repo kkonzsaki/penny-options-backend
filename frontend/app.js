@@ -11,17 +11,79 @@ let selectedOption = null;
 
 let watchlist = JSON.parse(localStorage.getItem("watchlist") || "[]");
 let savedTrades = JSON.parse(localStorage.getItem("savedTrades") || "[]");
+let priceAlerts = JSON.parse(localStorage.getItem("priceAlerts") || "[]");
 
 /* ===========================
-   STORAGE HELPERS
+   STORAGE
 =========================== */
 function saveState() {
   localStorage.setItem("watchlist", JSON.stringify(watchlist));
   localStorage.setItem("savedTrades", JSON.stringify(savedTrades));
+  localStorage.setItem("priceAlerts", JSON.stringify(priceAlerts));
 }
 
 /* ===========================
-   WATCHLIST RENDER
+   ALERT CHECK
+=========================== */
+function checkAlerts(symbol, price) {
+  priceAlerts.forEach(a => {
+    if (a.symbol === symbol) {
+      if (
+        (a.type === "above" && price >= a.price) ||
+        (a.type === "below" && price <= a.price)
+      ) {
+        alert(`🔔 ALERT: ${symbol} is ${price} (${a.type} ${a.price})`);
+        a.triggered = true;
+      }
+    }
+  });
+
+  priceAlerts = priceAlerts.filter(a => !a.triggered);
+  saveState();
+  renderAlerts();
+}
+
+/* ===========================
+   ALERTS RENDER
+=========================== */
+function renderAlerts() {
+  const out = document.getElementById("alertsOutput");
+  if (!out) return;
+
+  if (priceAlerts.length === 0) {
+    out.innerHTML = "No alerts set";
+    return;
+  }
+
+  let html = `
+    <table>
+      <tr><th>Symbol</th><th>Condition</th><th></th></tr>
+  `;
+
+  priceAlerts.forEach((a, i) => {
+    html += `
+      <tr>
+        <td>${a.symbol}</td>
+        <td>${a.type} ${a.price}</td>
+        <td><button data-i="${i}" class="remove-alert">✖</button></td>
+      </tr>
+    `;
+  });
+
+  html += "</table>";
+  out.innerHTML = html;
+
+  document.querySelectorAll(".remove-alert").forEach(btn => {
+    btn.onclick = () => {
+      priceAlerts.splice(btn.dataset.i, 1);
+      saveState();
+      renderAlerts();
+    };
+  });
+}
+
+/* ===========================
+   WATCHLIST
 =========================== */
 function renderWatchlist() {
   const out = document.getElementById("watchlistOutput");
@@ -53,7 +115,7 @@ function renderWatchlist() {
 }
 
 /* ===========================
-   SAVED TRADES RENDER
+   SAVED TRADES
 =========================== */
 function renderSavedTrades() {
   const out = document.getElementById("savedTradesOutput");
@@ -66,10 +128,7 @@ function renderSavedTrades() {
 
   let html = `
     <table>
-      <tr>
-        <th>Symbol</th><th>Type</th><th>Strike</th>
-        <th>Exp</th><th>Cost</th><th></th>
-      </tr>
+      <tr><th>Symbol</th><th>Type</th><th>Strike</th><th>Exp</th><th>Cost</th><th></th></tr>
   `;
 
   savedTrades.forEach((t, i) => {
@@ -147,7 +206,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderCandidates(data) {
     let html = `
       <table>
-        <tr><th>Symbol</th><th>Price</th><th></th></tr>
+        <tr><th>Symbol</th><th>Price</th><th>⭐</th><th>⏰</th></tr>
     `;
 
     data.forEach(c => {
@@ -162,6 +221,7 @@ document.addEventListener("DOMContentLoaded", () => {
           </td>
           <td>${c.price}</td>
           <td><button class="add-watch" data-symbol="${c.symbol}">⭐</button></td>
+          <td><button class="add-alert" data-symbol="${c.symbol}" data-price="${c.price}">⏰</button></td>
         </tr>
       `;
     });
@@ -181,6 +241,24 @@ document.addEventListener("DOMContentLoaded", () => {
         renderWatchlist();
       };
     });
+
+    document.querySelectorAll(".add-alert").forEach(b => {
+      b.onclick = () => {
+        const target = prompt("Alert price?");
+        if (!target) return;
+
+        const type = confirm("OK = ABOVE, Cancel = BELOW") ? "above" : "below";
+
+        priceAlerts.push({
+          symbol: b.dataset.symbol,
+          price: parseFloat(target),
+          type
+        });
+
+        saveState();
+        renderAlerts();
+      };
+    });
   }
 
   async function loadOptionsChain(e) {
@@ -188,6 +266,8 @@ document.addEventListener("DOMContentLoaded", () => {
     currentSymbol = e.target.dataset.symbol;
     currentPrice = parseFloat(e.target.dataset.price);
     selectedOption = null;
+
+    checkAlerts(currentSymbol, currentPrice);
 
     const res = await fetch(`${API_BASE}/api/v1/options/${currentSymbol}`);
     const data = await res.json();
@@ -225,8 +305,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const data = await res.json();
     candidatesCache = data.candidates || [];
     renderCandidates(candidatesCache);
+
+    candidatesCache.forEach(c => checkAlerts(c.symbol, c.price));
   };
 
   renderWatchlist();
   renderSavedTrades();
+  renderAlerts();
 });
