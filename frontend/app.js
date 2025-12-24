@@ -1,10 +1,10 @@
 console.log("Frontend loaded");
 
 /* ===========================
-   CONFIG SAFETY
+   SAFETY
 =========================== */
 if (typeof API_BASE === "undefined") {
-  console.error("❌ API_BASE is not defined. Check config.js");
+  console.error("❌ API_BASE is not defined (check config.js)");
 }
 
 /* ===========================
@@ -15,6 +15,10 @@ let currentOptions = [];
 let currentSymbol = "";
 let currentPrice = null;
 let selectedOption = null;
+
+let optionTypeFilter = "call"; // call | put
+let maxAskFilter = null;
+let expirationFilter = "ALL";
 
 let watchlist = JSON.parse(localStorage.getItem("watchlist") || "[]");
 let savedTrades = JSON.parse(localStorage.getItem("savedTrades") || "[]");
@@ -30,7 +34,7 @@ function saveState() {
 }
 
 /* ===========================
-   ALERT CHECK
+   ALERTS
 =========================== */
 function checkAlerts(symbol, price) {
   priceAlerts.forEach(a => {
@@ -46,28 +50,6 @@ function checkAlerts(symbol, price) {
 
   priceAlerts = priceAlerts.filter(a => !a.triggered);
   saveState();
-  renderAlerts();
-}
-
-/* ===========================
-   ALERTS RENDER
-=========================== */
-function renderAlerts() {
-  const out = document.getElementById("alertsOutput");
-  if (!out) return;
-
-  if (priceAlerts.length === 0) {
-    out.innerHTML = "No alerts set";
-    return;
-  }
-
-  let html = `<table><tr><th>Symbol</th><th>Condition</th></tr>`;
-  priceAlerts.forEach(a => {
-    html += `<tr><td>${a.symbol}</td><td>${a.type} ${a.price}</td></tr>`;
-  });
-  html += "</table>";
-
-  out.innerHTML = html;
 }
 
 /* ===========================
@@ -84,7 +66,7 @@ function renderWatchlist() {
 }
 
 /* ===========================
-   CANDIDATE RENDER
+   CANDIDATES
 =========================== */
 function renderCandidates(data) {
   const out = document.getElementById("candidatesOutput");
@@ -96,12 +78,7 @@ function renderCandidates(data) {
 
   let html = `
     <table>
-      <tr>
-        <th>Symbol</th>
-        <th>Price</th>
-        <th>⭐</th>
-        <th>⏰</th>
-      </tr>
+      <tr><th>Symbol</th><th>Price</th><th>⭐</th><th>⏰</th></tr>
   `;
 
   data.forEach(c => {
@@ -151,13 +128,54 @@ function renderCandidates(data) {
       });
 
       saveState();
-      renderAlerts();
     };
   });
 }
 
 /* ===========================
-   OPTIONS CHAIN
+   OPTIONS FILTER + RENDER
+=========================== */
+function renderOptions() {
+  const out = document.getElementById("optionsOutput");
+  if (!currentOptions.length) {
+    out.innerHTML = "No options loaded";
+    return;
+  }
+
+  let filtered = currentOptions.filter(o => {
+    if (optionTypeFilter && o.type !== optionTypeFilter) return false;
+    if (expirationFilter !== "ALL" && o.expiration !== expirationFilter) return false;
+    if (maxAskFilter !== null && o.ask > maxAskFilter) return false;
+    return true;
+  });
+
+  if (!filtered.length) {
+    out.innerHTML = "No options match filters";
+    return;
+  }
+
+  let html = `
+    <table>
+      <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th></tr>
+  `;
+
+  filtered.slice(0, 20).forEach((o, i) => {
+    html += `
+      <tr class="opt" data-i="${i}" style="cursor:pointer">
+        <td>${o.type}</td>
+        <td>${o.strike}</td>
+        <td>${o.expiration}</td>
+        <td>${o.ask}</td>
+      </tr>
+    `;
+  });
+
+  html += "</table>";
+  out.innerHTML = html;
+}
+
+/* ===========================
+   OPTIONS LOAD
 =========================== */
 async function loadOptionsChain(e) {
   e.preventDefault();
@@ -169,55 +187,70 @@ async function loadOptionsChain(e) {
 
   const res = await fetch(`${API_BASE}/api/v1/options/${currentSymbol}`);
   const data = await res.json();
+
   currentOptions = data.options || [];
 
-  const out = document.getElementById("optionsOutput");
-  out.innerHTML = `
-    <table>
-      <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th></tr>
-      ${currentOptions.slice(0, 10).map(o => `
-        <tr>
-          <td>${o.type}</td>
-          <td>${o.strike}</td>
-          <td>${o.expiration}</td>
-          <td>${o.ask}</td>
-        </tr>
-      `).join("")}
-    </table>
-  `;
+  // Populate expiration dropdown
+  const expSelect = document.getElementById("expirationSelect");
+  const expirations = [...new Set(currentOptions.map(o => o.expiration))];
+
+  expSelect.innerHTML =
+    `<option value="ALL">All Expirations</option>` +
+    expirations.map(e => `<option value="${e}">${e}</option>`).join("");
+
+  renderOptions();
 }
 
 /* ===========================
    MAIN
 =========================== */
 document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("candidatesBtn");
+  const candidatesBtn = document.getElementById("candidatesBtn");
   const minInput = document.getElementById("minPrice");
   const maxInput = document.getElementById("maxPrice");
   const applyFilter = document.getElementById("applyFilter");
 
-  btn.onclick = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/candidates`);
-      const data = await res.json();
-      candidatesCache = data.candidates || [];
-      renderCandidates(candidatesCache);
-    } catch (err) {
-      console.error("❌ Failed to load candidates", err);
-    }
+  const callsBtn = document.getElementById("callsBtn");
+  const putsBtn = document.getElementById("putsBtn");
+  const maxAskInput = document.getElementById("maxAsk");
+  const expSelect = document.getElementById("expirationSelect");
+
+  candidatesBtn.onclick = async () => {
+    const res = await fetch(`${API_BASE}/api/v1/candidates`);
+    const data = await res.json();
+    candidatesCache = data.candidates || [];
+    renderCandidates(candidatesCache);
   };
 
   applyFilter.onclick = () => {
     const min = parseFloat(minInput.value || 0);
     const max = parseFloat(maxInput.value || Infinity);
+    renderCandidates(candidatesCache.filter(c => c.price >= min && c.price <= max));
+  };
 
-    const filtered = candidatesCache.filter(c =>
-      c.price >= min && c.price <= max
-    );
+  callsBtn.onclick = () => {
+    optionTypeFilter = "call";
+    callsBtn.classList.add("active");
+    putsBtn.classList.remove("active");
+    renderOptions();
+  };
 
-    renderCandidates(filtered);
+  putsBtn.onclick = () => {
+    optionTypeFilter = "put";
+    putsBtn.classList.add("active");
+    callsBtn.classList.remove("active");
+    renderOptions();
+  };
+
+  maxAskInput.oninput = () => {
+    maxAskFilter = maxAskInput.value ? parseFloat(maxAskInput.value) : null;
+    renderOptions();
+  };
+
+  expSelect.onchange = () => {
+    expirationFilter = expSelect.value;
+    renderOptions();
   };
 
   renderWatchlist();
-  renderAlerts();
 });
