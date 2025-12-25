@@ -1,275 +1,195 @@
-console.log("App loaded");
+console.log("Frontend loaded");
 
-/* ======================
-   STATE
-====================== */
+/* ===========================
+   GLOBAL STATE
+=========================== */
 let candidatesCache = [];
 let currentOptions = [];
 let currentSymbol = "";
-let currentPrice = 0;
+let currentPrice = null;
+let selectedOption = null;
 
-let optionType = "call";
-let expiration = "ALL";
-let maxAskFilter = null;
-
-let selectedLegs = [];
-
+let watchlist = JSON.parse(localStorage.getItem("watchlist") || "[]");
 let savedTrades = JSON.parse(localStorage.getItem("savedTrades") || "[]");
+let priceAlerts = JSON.parse(localStorage.getItem("priceAlerts") || "[]");
 
-/* ======================
+/* ===========================
    STORAGE
-====================== */
-function saveTrades() {
+=========================== */
+function saveState() {
+  localStorage.setItem("watchlist", JSON.stringify(watchlist));
   localStorage.setItem("savedTrades", JSON.stringify(savedTrades));
-  renderSavedTrades();
+  localStorage.setItem("priceAlerts", JSON.stringify(priceAlerts));
 }
 
-/* ======================
-   SPREAD BUILDER
-====================== */
-function renderSpreadBuilder() {
-  const out = document.getElementById("spreadBuilder");
-
-  if (selectedLegs.length < 2) {
-    out.innerHTML = "<p>Select 2 option legs to build a spread</p>";
-    return;
-  }
-
-  const [buy, sell] = selectedLegs;
-  const debit = (buy.ask - sell.ask) * 100;
-
-  let maxProfit, maxLoss, breakeven;
-
-  if (buy.type === "call") {
-    breakeven = buy.strike + debit / 100;
-    maxProfit = (sell.strike - buy.strike) * 100 - debit;
-    maxLoss = debit;
-  } else {
-    breakeven = buy.strike - debit / 100;
-    maxProfit = (buy.strike - sell.strike) * 100 - debit;
-    maxLoss = debit;
-  }
-
-  out.innerHTML = `
-    <h3>Spread Builder</h3>
-    <p><b>${currentSymbol}</b></p>
-    <p>Buy ${buy.type.toUpperCase()} ${buy.strike} @ ${buy.ask}</p>
-    <p>Sell ${sell.type.toUpperCase()} ${sell.strike} @ ${sell.ask}</p>
-
-    <p>Net ${debit >= 0 ? "Debit" : "Credit"}: $${Math.abs(debit).toFixed(2)}</p>
-    <p>Max Profit: <span class="profit">$${maxProfit.toFixed(2)}</span></p>
-    <p>Max Loss: <span class="loss">$${maxLoss.toFixed(2)}</span></p>
-    <p>Breakeven: $${breakeven.toFixed(2)}</p>
-
-    <button id="saveSpread">Save Spread</button>
-  `;
-
-  document.getElementById("saveSpread").onclick = () => {
-    savedTrades.push({
-      symbol: currentSymbol,
-      strategy: "Spread",
-      buy,
-      sell,
-      debit
-    });
-    saveTrades();
-    selectedLegs = [];
-    out.innerHTML = "";
-  };
-}
-
-/* ======================
-   OPTIONS
-====================== */
-function renderOptions() {
-  const out = document.getElementById("optionsOutput");
-
-  const filtered = currentOptions.filter(o => {
-    if (o.type !== optionType) return false;
-    if (expiration !== "ALL" && o.expiration !== expiration) return false;
-    if (maxAskFilter && o.ask > maxAskFilter) return false;
-    return true;
-  });
-
-  if (!filtered.length) {
-    out.innerHTML = "No options found";
-    return;
-  }
-
-  let html = `
-    <table>
-      <tr>
-        <th></th>
-        <th>Type</th>
-        <th>Strike</th>
-        <th>Exp</th>
-        <th>Ask</th>
-      </tr>
-  `;
-
-  filtered.slice(0, 20).forEach((o, i) => {
-    html += `
-      <tr data-i="${i}" class="opt">
-        <td><input type="checkbox"></td>
-        <td>${o.type}</td>
-        <td>${o.strike}</td>
-        <td>${o.expiration}</td>
-        <td>${o.ask}</td>
-      </tr>
-    `;
-  });
-
-  html += "</table>";
-  out.innerHTML = html;
-
-  document.querySelectorAll(".opt").forEach((row, i) => {
-    row.onclick = () => {
-      const opt = filtered[i];
-      if (selectedLegs.length < 2) {
-        selectedLegs.push(opt);
-      } else {
-        selectedLegs = [opt];
-      }
-      renderSpreadBuilder();
-    };
-  });
-}
-
-/* ======================
-   LOAD OPTIONS
-====================== */
-async function loadOptionsChain(e) {
-  e.preventDefault();
-  currentSymbol = e.target.dataset.symbol;
-  currentPrice = parseFloat(e.target.dataset.price);
-
-  const res = await fetch(`${API_BASE}/api/v1/options/${currentSymbol}`);
-  const data = await res.json();
-  currentOptions = data.options || [];
-
-  expirationSelect.innerHTML =
-    `<option value="ALL">All Expirations</option>` +
-    [...new Set(currentOptions.map(o => o.expiration))]
-      .map(e => `<option value="${e}">${e}</option>`).join("");
-
-  selectedLegs = [];
-  renderOptions();
-}
-
-/* ======================
-   SAVED TRADES
-====================== */
-function renderSavedTrades() {
+/* ===========================
+   WATCHLIST
+=========================== */
+function renderWatchlist() {
   const out = document.getElementById("savedTrades");
+  if (!out) return;
 
-  if (!savedTrades.length) {
-    out.innerHTML = "No saved trades";
+  if (watchlist.length === 0) {
+    out.innerHTML = "Watchlist empty";
     return;
   }
 
-  let html = `
-    <table>
-      <tr>
-        <th>Symbol</th>
-        <th>Strategy</th>
-        <th>Details</th>
-        <th>Remove</th>
-      </tr>
-  `;
-
-  savedTrades.forEach((t, i) => {
+  let html = `<table><tr><th>Symbol</th><th></th></tr>`;
+  watchlist.forEach((s, i) => {
     html += `
       <tr>
-        <td>${t.symbol}</td>
-        <td>${t.strategy}</td>
-        <td>
-          Buy ${t.buy.strike} / Sell ${t.sell.strike}
-        </td>
-        <td><button data-i="${i}">X</button></td>
-      </tr>
-    `;
+        <td>${s}</td>
+        <td><button data-i="${i}" class="remove-watch">✖</button></td>
+      </tr>`;
   });
-
   html += "</table>";
   out.innerHTML = html;
 
-  out.querySelectorAll("button").forEach(b => {
-    b.onclick = () => {
-      savedTrades.splice(b.dataset.i, 1);
-      saveTrades();
+  document.querySelectorAll(".remove-watch").forEach(btn => {
+    btn.onclick = () => {
+      watchlist.splice(btn.dataset.i, 1);
+      saveState();
+      renderWatchlist();
     };
   });
 }
 
-/* ======================
-   INIT
-====================== */
+/* ===========================
+   ALERT CHECK
+=========================== */
+function checkAlerts(symbol, price) {
+  priceAlerts.forEach(a => {
+    if (
+      a.symbol === symbol &&
+      ((a.type === "above" && price >= a.price) ||
+       (a.type === "below" && price <= a.price))
+    ) {
+      alert(`🔔 ALERT: ${symbol} ${a.type} ${a.price}`);
+      a.triggered = true;
+    }
+  });
+
+  priceAlerts = priceAlerts.filter(a => !a.triggered);
+  saveState();
+}
+
+/* ===========================
+   MAIN
+=========================== */
 document.addEventListener("DOMContentLoaded", () => {
-  renderSavedTrades();
+  const candidatesBtn = document.getElementById("candidatesBtn");
+  const candidatesOutput = document.getElementById("candidatesOutput");
+  const optionsOutput = document.getElementById("optionsOutput");
 
-  candidatesBtn.onclick = async () => {
-    const res = await fetch(`${API_BASE}/api/v1/candidates`);
-    const data = await res.json();
-    candidatesCache = data.candidates || [];
-    renderCandidates(candidatesCache);
-  };
+  /* ===========================
+     RENDER CANDIDATES
+  =========================== */
+  function renderCandidates(data) {
+    let html = `
+      <table>
+        <tr><th>Symbol</th><th>Price</th></tr>
+    `;
 
-  applyFilter.onclick = () => {
-    const min = parseFloat(minPrice.value || 0);
-    const max = parseFloat(maxPrice.value || Infinity);
-    renderCandidates(candidatesCache.filter(c => c.price >= min && c.price <= max));
-  };
-
-  callsBtn.onclick = () => {
-    optionType = "call";
-    callsBtn.classList.add("active");
-    putsBtn.classList.remove("active");
-    renderOptions();
-  };
-
-  putsBtn.onclick = () => {
-    optionType = "put";
-    putsBtn.classList.add("active");
-    callsBtn.classList.remove("active");
-    renderOptions();
-  };
-
-  expirationSelect.onchange = () => {
-    expiration = expirationSelect.value;
-    renderOptions();
-  };
-
-  maxAsk.oninput = () => {
-    maxAskFilter = maxAsk.value ? parseFloat(maxAsk.value) : null;
-    renderOptions();
-  };
-});
-
-/* ======================
-   CANDIDATES
-====================== */
-function renderCandidates(list) {
-  const out = document.getElementById("candidatesOutput");
-
-  let html = `<table><tr><th>Symbol</th><th>Price</th></tr>`;
-  list.forEach(c => {
-    html += `
-      <tr>
-        <td>
-          <a href="#" class="symbol-link"
+    data.forEach(c => {
+      html += `
+        <tr class="candidate-row"
             data-symbol="${c.symbol}"
             data-price="${c.price}">
-            ${c.symbol}
-          </a>
-        </td>
-        <td>${c.price}</td>
-      </tr>
+          <td>${c.symbol}</td>
+          <td>${c.price}</td>
+        </tr>
+      `;
+    });
+
+    html += "</table>";
+    candidatesOutput.innerHTML = html;
+
+    document.querySelectorAll(".candidate-row").forEach(row => {
+      row.onclick = () => openOptions(row.dataset.symbol, row.dataset.price);
+      enableSwipe(row);
+    });
+  }
+
+  /* ===========================
+     OPTIONS LOAD
+  =========================== */
+  async function openOptions(symbol, price) {
+    currentSymbol = symbol;
+    currentPrice = parseFloat(price);
+    selectedOption = null;
+
+    checkAlerts(symbol, currentPrice);
+
+    optionsOutput.innerHTML = "Loading options...";
+    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
+    const data = await res.json();
+    currentOptions = data.options || [];
+
+    let html = `
+      <table>
+        <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th></tr>
     `;
-  });
 
-  html += "</table>";
-  out.innerHTML = html;
+    currentOptions.slice(0, 10).forEach(o => {
+      html += `
+        <tr>
+          <td>${o.type}</td>
+          <td>${o.strike}</td>
+          <td>${o.expiration}</td>
+          <td>${o.ask}</td>
+        </tr>
+      `;
+    });
 
-  document.querySelectorAll(".symbol-link")
-    .forEach(l => l.onclick = loadOptionsChain);
-}
+    html += "</table>";
+    optionsOutput.innerHTML = html;
+  }
+
+  /* ===========================
+     SWIPE GESTURES
+  =========================== */
+  function enableSwipe(el) {
+    let startX = 0;
+
+    el.addEventListener("touchstart", e => {
+      startX = e.touches[0].clientX;
+    });
+
+    el.addEventListener("touchend", e => {
+      const endX = e.changedTouches[0].clientX;
+      const deltaX = endX - startX;
+
+      // 👉 Swipe RIGHT = open options
+      if (deltaX > 60) {
+        openOptions(el.dataset.symbol, el.dataset.price);
+      }
+
+      // 👈 Swipe LEFT = add to watchlist
+      if (deltaX < -60) {
+        const s = el.dataset.symbol;
+        if (!watchlist.includes(s)) {
+          watchlist.push(s);
+          saveState();
+          renderWatchlist();
+          alert(`⭐ Added ${s} to watchlist`);
+        }
+      }
+    });
+  }
+
+  /* ===========================
+     LOAD CANDIDATES
+  =========================== */
+  candidatesBtn.onclick = async () => {
+    candidatesOutput.innerHTML = "Loading...";
+    const res = await fetch(`${API_BASE}/api/v1/candidates`);
+    const data = await res.json();
+
+    candidatesCache = data.candidates || [];
+    renderCandidates(candidatesCache);
+
+    candidatesCache.forEach(c => checkAlerts(c.symbol, c.price));
+  };
+
+  renderWatchlist();
+});
