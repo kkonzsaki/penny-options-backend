@@ -22,6 +22,8 @@ themeToggle.onclick = () => {
    GLOBAL STATE
 =========================== */
 let candidatesCache = [];
+let optionsCache = [];
+let currentFilter = "all";
 
 /* ===========================
    MAIN
@@ -34,16 +36,17 @@ document.addEventListener("DOMContentLoaded", () => {
   const maxPrice = document.getElementById("maxPrice");
   const applyFilter = document.getElementById("applyFilter");
 
+  const showAll = document.getElementById("showAll");
+  const showCalls = document.getElementById("showCalls");
+  const showPuts = document.getElementById("showPuts");
+
   function renderCandidates(data) {
     if (!data.length) {
       candidatesOutput.innerHTML = "No candidates";
       return;
     }
 
-    let html = `
-      <table>
-        <tr><th>Symbol</th><th>Price</th></tr>
-    `;
+    let html = `<table><tr><th>Symbol</th><th>Price</th></tr>`;
 
     data.forEach(c => {
       html += `
@@ -69,14 +72,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  async function loadOptions(symbol) {
-    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
+  function renderOptions() {
+    let filtered = optionsCache;
 
-    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-    const data = await res.json();
-    const options = data.options || [];
+    if (currentFilter !== "all") {
+      filtered = optionsCache.filter(o => o.type === currentFilter);
+    }
 
-    if (!options.length) {
+    if (!filtered.length) {
       optionsOutput.innerHTML = "No options found";
       return;
     }
@@ -91,7 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </tr>
     `;
 
-    options.slice(0, 15).forEach(o => {
+    filtered.slice(0, 20).forEach(o => {
       const cls = o.type === "call" ? "call" : "put";
       html += `
         <tr class="${cls}">
@@ -106,6 +109,31 @@ document.addEventListener("DOMContentLoaded", () => {
     html += "</table>";
     optionsOutput.innerHTML = html;
   }
+
+  async function loadOptions(symbol) {
+    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
+    currentFilter = "all";
+
+    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
+    const data = await res.json();
+    optionsCache = data.options || [];
+    renderOptions();
+  }
+
+  showAll.onclick = () => {
+    currentFilter = "all";
+    renderOptions();
+  };
+
+  showCalls.onclick = () => {
+    currentFilter = "call";
+    renderOptions();
+  };
+
+  showPuts.onclick = () => {
+    currentFilter = "put";
+    renderOptions();
+  };
 
   candidatesBtn.onclick = async () => {
     candidatesOutput.innerHTML = "Loading...";
