@@ -1,5 +1,11 @@
 console.log("Frontend loaded");
 
+if (typeof API_BASE === "undefined") {
+  alert("API_BASE is not defined. config.js failed to load.");
+  throw new Error("API_BASE missing");
+}
+
+
 /* ===========================
    GLOBAL STATE
 =========================== */
@@ -134,23 +140,39 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ===========================
      LOAD OPTIONS (WITH ERRORS)
   =========================== */
-  async function loadOptions(symbol) {
-    showLoading(optionsOutput, `Loading options for ${symbol}...`);
-    currentFilter = "all";
+async function loadOptions(symbol) {
+  optionsOutput.innerHTML = `⏳ Loading options for ${symbol}...`;
+  currentFilter = "all";
 
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-      if (!res.ok) throw new Error("Options request failed");
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
+    if (!res.ok) throw new Error("Options request failed");
 
-      const data = await res.json();
-      optionsCache = data.options || [];
-      renderOptions();
+    const data = await res.json();
 
-    } catch (err) {
-      console.error(err);
-      showError(optionsOutput, "Failed to load options");
+    // ✅ SUPPORT ALL BACKEND SHAPES
+    if (Array.isArray(data.options)) {
+      optionsCache = data.options;
+    } else {
+      const calls = data.calls || [];
+      const puts = data.puts || [];
+      optionsCache = [...calls, ...puts];
     }
+
+    if (!optionsCache.length) {
+      optionsOutput.innerHTML = "No options returned from API";
+      return;
+    }
+
+    renderOptions();
+
+  } catch (err) {
+    console.error("Options load failed:", err);
+    optionsOutput.innerHTML =
+      `<span style="color:#ef4444;">❌ Failed to load options</span>`;
   }
+}
+
 
   /* ===========================
      FILTER BUTTONS
