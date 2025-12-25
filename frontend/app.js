@@ -6,12 +6,13 @@ console.log("App loaded");
 let candidatesCache = [];
 let currentOptions = [];
 let currentSymbol = "";
-let currentPrice = null;
-let selectedOption = null;
+let currentPrice = 0;
 
 let optionType = "call";
 let expiration = "ALL";
 let maxAskFilter = null;
+
+let selectedLegs = [];
 
 let savedTrades = JSON.parse(localStorage.getItem("savedTrades") || "[]");
 
@@ -24,127 +25,57 @@ function saveTrades() {
 }
 
 /* ======================
-   PROFIT CALCULATOR
+   SPREAD BUILDER
 ====================== */
-function renderTradeBuilder() {
-  const out = document.getElementById("tradeBuilder");
-  if (!selectedOption || !currentPrice) {
-    out.innerHTML = "";
+function renderSpreadBuilder() {
+  const out = document.getElementById("spreadBuilder");
+
+  if (selectedLegs.length < 2) {
+    out.innerHTML = "<p>Select 2 option legs to build a spread</p>";
     return;
   }
 
-  const { strike, ask, type, expiration } = selectedOption;
-  const cost = ask * 100;
+  const [buy, sell] = selectedLegs;
+  const debit = (buy.ask - sell.ask) * 100;
+
+  let maxProfit, maxLoss, breakeven;
+
+  if (buy.type === "call") {
+    breakeven = buy.strike + debit / 100;
+    maxProfit = (sell.strike - buy.strike) * 100 - debit;
+    maxLoss = debit;
+  } else {
+    breakeven = buy.strike - debit / 100;
+    maxProfit = (buy.strike - sell.strike) * 100 - debit;
+    maxLoss = debit;
+  }
 
   out.innerHTML = `
-    <h3>Trade Builder</h3>
-    <p><b>${currentSymbol} ${type.toUpperCase()}</b></p>
-    <p>Strike: $${strike}</p>
-    <p>Ask: $${ask}</p>
-    <p>Cost: $${cost.toFixed(2)}</p>
+    <h3>Spread Builder</h3>
+    <p><b>${currentSymbol}</b></p>
+    <p>Buy ${buy.type.toUpperCase()} ${buy.strike} @ ${buy.ask}</p>
+    <p>Sell ${sell.type.toUpperCase()} ${sell.strike} @ ${sell.ask}</p>
 
-    <label>Contracts:
-      <input type="number" id="contracts" value="1" min="1" />
-    </label>
+    <p>Net ${debit >= 0 ? "Debit" : "Credit"}: $${Math.abs(debit).toFixed(2)}</p>
+    <p>Max Profit: <span class="profit">$${maxProfit.toFixed(2)}</span></p>
+    <p>Max Loss: <span class="loss">$${maxLoss.toFixed(2)}</span></p>
+    <p>Breakeven: $${breakeven.toFixed(2)}</p>
 
-    <button id="saveTrade">Save Trade</button>
-
-    <input type="range" id="priceSlider"
-      min="0"
-      max="${(currentPrice * 3).toFixed(2)}"
-      step="0.01"
-      value="${currentPrice}" />
-
-    <p>Price: $<span id="priceVal">${currentPrice}</span></p>
-    <p>P/L: <span id="plVal"></span></p>
+    <button id="saveSpread">Save Spread</button>
   `;
 
-  const slider = document.getElementById("priceSlider");
-  const priceVal = document.getElementById("priceVal");
-  const plVal = document.getElementById("plVal");
-
-  function calcPL(price) {
-    const intrinsic =
-      type === "call"
-        ? Math.max(price - strike, 0)
-        : Math.max(strike - price, 0);
-
-    return intrinsic * 100 - cost;
-  }
-
-  function updatePL(price) {
-    const pl = calcPL(price);
-    plVal.textContent = pl >= 0 ? `+$${pl.toFixed(2)}` : `-$${Math.abs(pl).toFixed(2)}`;
-    plVal.className = pl >= 0 ? "profit" : "loss";
-  }
-
-  slider.oninput = () => {
-    priceVal.textContent = slider.value;
-    updatePL(parseFloat(slider.value));
-  };
-
-  updatePL(currentPrice);
-
-  document.getElementById("saveTrade").onclick = () => {
-    const contracts = parseInt(document.getElementById("contracts").value);
-
+  document.getElementById("saveSpread").onclick = () => {
     savedTrades.push({
       symbol: currentSymbol,
-      type,
-      strike,
-      expiration,
-      ask,
-      contracts
+      strategy: "Spread",
+      buy,
+      sell,
+      debit
     });
-
     saveTrades();
+    selectedLegs = [];
+    out.innerHTML = "";
   };
-}
-
-/* ======================
-   SAVED TRADES
-====================== */
-function renderSavedTrades() {
-  const out = document.getElementById("savedTrades");
-  if (!savedTrades.length) {
-    out.innerHTML = "No saved trades";
-    return;
-  }
-
-  let html = `
-    <table>
-      <tr>
-        <th>Symbol</th>
-        <th>Type</th>
-        <th>Strike</th>
-        <th>Ask</th>
-        <th>Contracts</th>
-        <th>Remove</th>
-      </tr>
-  `;
-
-  savedTrades.forEach((t, i) => {
-    html += `
-      <tr>
-        <td>${t.symbol}</td>
-        <td>${t.type}</td>
-        <td>${t.strike}</td>
-        <td>${t.ask}</td>
-        <td>${t.contracts}</td>
-        <td><button data-i="${i}">X</button></td>
-      </tr>
-    `;
-  });
-
-  html += "</table>";
-  out.innerHTML = html;
-
-  out.querySelectorAll("button").forEach(btn => {
-    btn.onclick = () => {
-      savedTrades.splice(btn.dataset.i, 1);
-      saveTrades();
-    };
-  });
 }
 
 /* ======================
@@ -161,13 +92,14 @@ function renderOptions() {
   });
 
   if (!filtered.length) {
-    out.innerHTML = "No options match filters";
+    out.innerHTML = "No options found";
     return;
   }
 
   let html = `
     <table>
       <tr>
+        <th></th>
         <th>Type</th>
         <th>Strike</th>
         <th>Exp</th>
@@ -175,9 +107,10 @@ function renderOptions() {
       </tr>
   `;
 
-  filtered.slice(0, 15).forEach((o, i) => {
+  filtered.slice(0, 20).forEach((o, i) => {
     html += `
-      <tr class="opt" data-i="${i}">
+      <tr data-i="${i}" class="opt">
+        <td><input type="checkbox"></td>
         <td>${o.type}</td>
         <td>${o.strike}</td>
         <td>${o.expiration}</td>
@@ -189,10 +122,15 @@ function renderOptions() {
   html += "</table>";
   out.innerHTML = html;
 
-  document.querySelectorAll(".opt").forEach((r, i) => {
-    r.onclick = () => {
-      selectedOption = filtered[i];
-      renderTradeBuilder();
+  document.querySelectorAll(".opt").forEach((row, i) => {
+    row.onclick = () => {
+      const opt = filtered[i];
+      if (selectedLegs.length < 2) {
+        selectedLegs.push(opt);
+      } else {
+        selectedLegs = [opt];
+      }
+      renderSpreadBuilder();
     };
   });
 }
@@ -209,33 +147,58 @@ async function loadOptionsChain(e) {
   const data = await res.json();
   currentOptions = data.options || [];
 
-  const exps = [...new Set(currentOptions.map(o => o.expiration))];
   expirationSelect.innerHTML =
     `<option value="ALL">All Expirations</option>` +
-    exps.map(e => `<option value="${e}">${e}</option>`).join("");
+    [...new Set(currentOptions.map(o => o.expiration))]
+      .map(e => `<option value="${e}">${e}</option>`).join("");
 
+  selectedLegs = [];
   renderOptions();
 }
 
 /* ======================
-   CANDIDATES
+   SAVED TRADES
 ====================== */
-function renderCandidates(list) {
-  const out = document.getElementById("candidatesOutput");
+function renderSavedTrades() {
+  const out = document.getElementById("savedTrades");
 
-  let html = `<table><tr><th>Symbol</th><th>Price</th></tr>`;
-  list.forEach(c => {
+  if (!savedTrades.length) {
+    out.innerHTML = "No saved trades";
+    return;
+  }
+
+  let html = `
+    <table>
+      <tr>
+        <th>Symbol</th>
+        <th>Strategy</th>
+        <th>Details</th>
+        <th>Remove</th>
+      </tr>
+  `;
+
+  savedTrades.forEach((t, i) => {
     html += `
       <tr>
-        <td><a href="#" class="symbol-link" data-symbol="${c.symbol}" data-price="${c.price}">${c.symbol}</a></td>
-        <td>${c.price}</td>
+        <td>${t.symbol}</td>
+        <td>${t.strategy}</td>
+        <td>
+          Buy ${t.buy.strike} / Sell ${t.sell.strike}
+        </td>
+        <td><button data-i="${i}">X</button></td>
       </tr>
     `;
   });
-  html += "</table>";
 
+  html += "</table>";
   out.innerHTML = html;
-  document.querySelectorAll(".symbol-link").forEach(l => l.onclick = loadOptionsChain);
+
+  out.querySelectorAll("button").forEach(b => {
+    b.onclick = () => {
+      savedTrades.splice(b.dataset.i, 1);
+      saveTrades();
+    };
+  });
 }
 
 /* ======================
@@ -271,13 +234,42 @@ document.addEventListener("DOMContentLoaded", () => {
     renderOptions();
   };
 
-  maxAsk.oninput = () => {
-    maxAskFilter = maxAsk.value ? parseFloat(maxAsk.value) : null;
-    renderOptions();
-  };
-
   expirationSelect.onchange = () => {
     expiration = expirationSelect.value;
     renderOptions();
   };
+
+  maxAsk.oninput = () => {
+    maxAskFilter = maxAsk.value ? parseFloat(maxAsk.value) : null;
+    renderOptions();
+  };
 });
+
+/* ======================
+   CANDIDATES
+====================== */
+function renderCandidates(list) {
+  const out = document.getElementById("candidatesOutput");
+
+  let html = `<table><tr><th>Symbol</th><th>Price</th></tr>`;
+  list.forEach(c => {
+    html += `
+      <tr>
+        <td>
+          <a href="#" class="symbol-link"
+            data-symbol="${c.symbol}"
+            data-price="${c.price}">
+            ${c.symbol}
+          </a>
+        </td>
+        <td>${c.price}</td>
+      </tr>
+    `;
+  });
+
+  html += "</table>";
+  out.innerHTML = html;
+
+  document.querySelectorAll(".symbol-link")
+    .forEach(l => l.onclick = loadOptionsChain);
+}
