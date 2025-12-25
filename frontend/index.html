@@ -108,6 +108,14 @@
     .filter-bar {
       margin-top: 10px;
     }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 10px;
+      margin-top: 15px;
+      border-radius: 6px;
+    }
   </style>
 </head>
 
@@ -117,28 +125,48 @@
     <button id="themeToggle">🌙 Dark</button>
   </div>
 
-  <h2>Options Chain</h2>
+  <!-- OPTIONS CHAIN -->
+  <section class="panel">
+    <h2>Options Chain</h2>
 
-  <!-- CALL / PUT FILTERS -->
-  <div class="filter-bar">
-    <button id="showAll">All</button>
-    <button id="showCalls">Calls</button>
-    <button id="showPuts">Puts</button>
-  </div>
+    <div class="filter-bar">
+      <button id="showAll">All</button>
+      <button id="showCalls">Calls</button>
+      <button id="showPuts">Puts</button>
+    </div>
 
-  <div id="optionsOutput">Click a symbol below</div>
+    <div id="optionsOutput">Click a symbol below</div>
+  </section>
 
-  <section>
+  <!-- TRADE BUILDER -->
+  <section class="panel">
+    <div id="tradeBuilder">
+      <em>Select an option to build a trade</em>
+    </div>
+  </section>
+
+  <!-- SAVED TRADES -->
+  <section class="panel">
+    <h2>Saved Trades</h2>
+    <div id="savedTradesOutput"></div>
+  </section>
+
+  <!-- CANDIDATES -->
+  <section class="panel">
     <h2>Penny Option Candidates</h2>
     <button id="candidatesBtn">Load Candidates</button>
 
     <div style="margin-top:10px;">
-      <label>Min Price:
+      <label>
+        Min Price:
         <input type="number" id="minPrice" step="0.01" />
       </label>
-      <label>Max Price:
+
+      <label>
+        Max Price:
         <input type="number" id="maxPrice" step="0.01" />
       </label>
+
       <button id="applyFilter">Apply Filter</button>
     </div>
 
