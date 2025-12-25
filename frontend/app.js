@@ -150,20 +150,34 @@ async function loadOptions(symbol) {
 
     const data = await res.json();
 
-    // ✅ SUPPORT ALL BACKEND SHAPES
+    // ✅ NORMALIZE OPTIONS (CRITICAL FIX)
+    let normalized = [];
+
     if (Array.isArray(data.options)) {
-      optionsCache = data.options;
+      normalized = data.options.map(o => ({
+        ...o,
+        type: o.type || "call"
+      }));
     } else {
-      const calls = data.calls || [];
-      const puts = data.puts || [];
-      optionsCache = [...calls, ...puts];
+      const calls = (data.calls || []).map(o => ({
+        ...o,
+        type: "call"
+      }));
+
+      const puts = (data.puts || []).map(o => ({
+        ...o,
+        type: "put"
+      }));
+
+      normalized = [...calls, ...puts];
     }
 
-    if (!optionsCache.length) {
+    if (!normalized.length) {
       optionsOutput.innerHTML = "No options returned from API";
       return;
     }
 
+    optionsCache = normalized;
     renderOptions();
 
   } catch (err) {
@@ -172,6 +186,7 @@ async function loadOptions(symbol) {
       `<span style="color:#ef4444;">❌ Failed to load options</span>`;
   }
 }
+
 
 
   /* ===========================
