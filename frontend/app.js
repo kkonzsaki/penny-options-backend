@@ -1,7 +1,7 @@
 console.log("Frontend loaded");
 
 /* ===========================
-   GLOBAL STATE
+   STATE
 =========================== */
 let candidatesCache = [];
 let currentOptions = [];
@@ -10,8 +10,8 @@ let currentPrice = null;
 let selectedOption = null;
 
 let optionType = "call";
-let maxAsk = null;
 let expiration = "ALL";
+let maxAskFilter = null;
 
 /* ===========================
    PROFIT CALCULATOR
@@ -28,29 +28,23 @@ function renderTradeBuilder() {
   const type = selectedOption.type;
 
   const breakeven =
-    type === "call"
-      ? strike + ask
-      : strike - ask;
+    type === "call" ? strike + ask : strike - ask;
 
-  const contractCost = ask * 100;
+  const cost = ask * 100;
 
   out.innerHTML = `
     <h3>Profit Calculator</h3>
-
     <p><b>${currentSymbol.toUpperCase()} ${type.toUpperCase()}</b></p>
     <p>Strike: $${strike}</p>
     <p>Ask: $${ask}</p>
-    <p>Cost: $${contractCost.toFixed(2)}</p>
+    <p>Cost: $${cost.toFixed(2)}</p>
     <p>Breakeven: $${breakeven.toFixed(2)}</p>
 
-    <label>
-      Stock Price at Expiration:
-      <input type="range" id="priceSlider"
-        min="0"
-        max="${(currentPrice * 3).toFixed(2)}"
-        step="0.01"
-        value="${currentPrice}" />
-    </label>
+    <input type="range" id="priceSlider"
+      min="0"
+      max="${(currentPrice * 3).toFixed(2)}"
+      step="0.01"
+      value="${currentPrice}" />
 
     <p>Price: $<span id="priceVal">${currentPrice}</span></p>
     <p>P/L: <span id="plVal"></span></p>
@@ -61,18 +55,14 @@ function renderTradeBuilder() {
   const plVal = document.getElementById("plVal");
 
   function updatePL(price) {
-    let intrinsic =
+    const intrinsic =
       type === "call"
         ? Math.max(price - strike, 0)
         : Math.max(strike - price, 0);
 
-    const profit = intrinsic * 100 - contractCost;
-
+    const profit = intrinsic * 100 - cost;
     plVal.textContent =
-      profit >= 0
-        ? `+$${profit.toFixed(2)}`
-        : `-$${Math.abs(profit).toFixed(2)}`;
-
+      profit >= 0 ? `+$${profit.toFixed(2)}` : `-$${Math.abs(profit).toFixed(2)}`;
     plVal.className = profit >= 0 ? "profit" : "loss";
   }
 
@@ -85,15 +75,15 @@ function renderTradeBuilder() {
 }
 
 /* ===========================
-   OPTIONS RENDER
+   OPTIONS RENDER (WITH GREEKS)
 =========================== */
 function renderOptions() {
   const out = document.getElementById("optionsOutput");
 
-  let filtered = currentOptions.filter(o => {
+  const filtered = currentOptions.filter(o => {
     if (o.type !== optionType) return false;
     if (expiration !== "ALL" && o.expiration !== expiration) return false;
-    if (maxAsk !== null && o.ask > maxAsk) return false;
+    if (maxAskFilter !== null && o.ask > maxAskFilter) return false;
     return true;
   });
 
@@ -104,16 +94,31 @@ function renderOptions() {
 
   let html = `
     <table>
-      <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th></tr>
+      <tr>
+        <th>Type</th>
+        <th>Strike</th>
+        <th>Exp</th>
+        <th>Ask</th>
+        <th>Delta</th>
+        <th>Theta</th>
+        <th>IV</th>
+      </tr>
   `;
 
   filtered.slice(0, 15).forEach((o, i) => {
+    const delta = o.delta ?? "—";
+    const theta = o.theta ?? "—";
+    const iv = o.iv ?? o.impliedVolatility ?? "—";
+
     html += `
       <tr class="opt" data-i="${i}">
         <td>${o.type}</td>
         <td>${o.strike}</td>
         <td>${o.expiration}</td>
         <td>${o.ask}</td>
+        <td class="${delta >= 0 ? "delta-pos" : "delta-neg"}">${delta}</td>
+        <td class="theta-neg">${theta}</td>
+        <td>${iv}</td>
       </tr>
     `;
   });
@@ -163,9 +168,9 @@ function renderCandidates(list) {
       <tr>
         <td>
           <a href="#" class="symbol-link"
-             data-symbol="${c.symbol}"
-             data-price="${c.price}">
-             ${c.symbol}
+            data-symbol="${c.symbol}"
+            data-price="${c.price}">
+            ${c.symbol}
           </a>
         </td>
         <td>${c.price}</td>
@@ -182,14 +187,14 @@ function renderCandidates(list) {
    MAIN
 =========================== */
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("candidatesBtn").onclick = async () => {
+  candidatesBtn.onclick = async () => {
     const res = await fetch(`${API_BASE}/api/v1/candidates`);
     const data = await res.json();
     candidatesCache = data.candidates || [];
     renderCandidates(candidatesCache);
   };
 
-  document.getElementById("applyFilter").onclick = () => {
+  applyFilter.onclick = () => {
     const min = parseFloat(minPrice.value || 0);
     const max = parseFloat(maxPrice.value || Infinity);
     renderCandidates(candidatesCache.filter(c => c.price >= min && c.price <= max));
@@ -210,7 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   maxAsk.oninput = () => {
-    maxAsk = maxAsk.value ? parseFloat(maxAsk.value) : null;
+    maxAskFilter = maxAsk.value ? parseFloat(maxAsk.value) : null;
     renderOptions();
   };
 
