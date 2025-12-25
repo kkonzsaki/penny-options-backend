@@ -1,77 +1,27 @@
 console.log("Frontend loaded");
 
 /* ===========================
+   THEME TOGGLE
+=========================== */
+const themeToggle = document.getElementById("themeToggle");
+const savedTheme = localStorage.getItem("theme") || "dark";
+
+if (savedTheme === "light") {
+  document.body.classList.add("light");
+  themeToggle.textContent = "☀️ Light";
+}
+
+themeToggle.onclick = () => {
+  document.body.classList.toggle("light");
+  const isLight = document.body.classList.contains("light");
+  localStorage.setItem("theme", isLight ? "light" : "dark");
+  themeToggle.textContent = isLight ? "☀️ Light" : "🌙 Dark";
+};
+
+/* ===========================
    GLOBAL STATE
 =========================== */
 let candidatesCache = [];
-let currentOptions = [];
-let currentSymbol = "";
-let currentPrice = null;
-let selectedOption = null;
-
-let watchlist = JSON.parse(localStorage.getItem("watchlist") || "[]");
-let savedTrades = JSON.parse(localStorage.getItem("savedTrades") || "[]");
-let priceAlerts = JSON.parse(localStorage.getItem("priceAlerts") || "[]");
-
-/* ===========================
-   STORAGE
-=========================== */
-function saveState() {
-  localStorage.setItem("watchlist", JSON.stringify(watchlist));
-  localStorage.setItem("savedTrades", JSON.stringify(savedTrades));
-  localStorage.setItem("priceAlerts", JSON.stringify(priceAlerts));
-}
-
-/* ===========================
-   WATCHLIST
-=========================== */
-function renderWatchlist() {
-  const out = document.getElementById("savedTrades");
-  if (!out) return;
-
-  if (watchlist.length === 0) {
-    out.innerHTML = "Watchlist empty";
-    return;
-  }
-
-  let html = `<table><tr><th>Symbol</th><th></th></tr>`;
-  watchlist.forEach((s, i) => {
-    html += `
-      <tr>
-        <td>${s}</td>
-        <td><button data-i="${i}" class="remove-watch">✖</button></td>
-      </tr>`;
-  });
-  html += "</table>";
-  out.innerHTML = html;
-
-  document.querySelectorAll(".remove-watch").forEach(btn => {
-    btn.onclick = () => {
-      watchlist.splice(btn.dataset.i, 1);
-      saveState();
-      renderWatchlist();
-    };
-  });
-}
-
-/* ===========================
-   ALERT CHECK
-=========================== */
-function checkAlerts(symbol, price) {
-  priceAlerts.forEach(a => {
-    if (
-      a.symbol === symbol &&
-      ((a.type === "above" && price >= a.price) ||
-       (a.type === "below" && price <= a.price))
-    ) {
-      alert(`🔔 ALERT: ${symbol} ${a.type} ${a.price}`);
-      a.triggered = true;
-    }
-  });
-
-  priceAlerts = priceAlerts.filter(a => !a.triggered);
-  saveState();
-}
 
 /* ===========================
    MAIN
@@ -80,11 +30,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
   const optionsOutput = document.getElementById("optionsOutput");
+  const minPrice = document.getElementById("minPrice");
+  const maxPrice = document.getElementById("maxPrice");
+  const applyFilter = document.getElementById("applyFilter");
 
-  /* ===========================
-     RENDER CANDIDATES
-  =========================== */
   function renderCandidates(data) {
+    if (!data.length) {
+      candidatesOutput.innerHTML = "No candidates";
+      return;
+    }
+
     let html = `
       <table>
         <tr><th>Symbol</th><th>Price</th></tr>
@@ -92,10 +47,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     data.forEach(c => {
       html += `
-        <tr class="candidate-row"
-            data-symbol="${c.symbol}"
-            data-price="${c.price}">
-          <td>${c.symbol}</td>
+        <tr>
+          <td>
+            <a href="#" class="symbol-link" data-symbol="${c.symbol}">
+              ${c.symbol}
+            </a>
+          </td>
           <td>${c.price}</td>
         </tr>
       `;
@@ -104,36 +61,41 @@ document.addEventListener("DOMContentLoaded", () => {
     html += "</table>";
     candidatesOutput.innerHTML = html;
 
-    document.querySelectorAll(".candidate-row").forEach(row => {
-      row.onclick = () => openOptions(row.dataset.symbol, row.dataset.price);
-      enableSwipe(row);
+    document.querySelectorAll(".symbol-link").forEach(link => {
+      link.onclick = e => {
+        e.preventDefault();
+        loadOptions(link.dataset.symbol);
+      };
     });
   }
 
-  /* ===========================
-     OPTIONS LOAD
-  =========================== */
-  async function openOptions(symbol, price) {
-    currentSymbol = symbol;
-    currentPrice = parseFloat(price);
-    selectedOption = null;
+  async function loadOptions(symbol) {
+    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
 
-    checkAlerts(symbol, currentPrice);
-
-    optionsOutput.innerHTML = "Loading options...";
     const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
     const data = await res.json();
-    currentOptions = data.options || [];
+    const options = data.options || [];
+
+    if (!options.length) {
+      optionsOutput.innerHTML = "No options found";
+      return;
+    }
 
     let html = `
       <table>
-        <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th></tr>
+        <tr>
+          <th>Type</th>
+          <th>Strike</th>
+          <th>Expiration</th>
+          <th>Ask</th>
+        </tr>
     `;
 
-    currentOptions.slice(0, 10).forEach(o => {
+    options.slice(0, 15).forEach(o => {
+      const cls = o.type === "call" ? "call" : "put";
       html += `
-        <tr>
-          <td>${o.type}</td>
+        <tr class="${cls}">
+          <td class="${cls}">${o.type.toUpperCase()}</td>
           <td>${o.strike}</td>
           <td>${o.expiration}</td>
           <td>${o.ask}</td>
@@ -145,51 +107,19 @@ document.addEventListener("DOMContentLoaded", () => {
     optionsOutput.innerHTML = html;
   }
 
-  /* ===========================
-     SWIPE GESTURES
-  =========================== */
-  function enableSwipe(el) {
-    let startX = 0;
-
-    el.addEventListener("touchstart", e => {
-      startX = e.touches[0].clientX;
-    });
-
-    el.addEventListener("touchend", e => {
-      const endX = e.changedTouches[0].clientX;
-      const deltaX = endX - startX;
-
-      // 👉 Swipe RIGHT = open options
-      if (deltaX > 60) {
-        openOptions(el.dataset.symbol, el.dataset.price);
-      }
-
-      // 👈 Swipe LEFT = add to watchlist
-      if (deltaX < -60) {
-        const s = el.dataset.symbol;
-        if (!watchlist.includes(s)) {
-          watchlist.push(s);
-          saveState();
-          renderWatchlist();
-          alert(`⭐ Added ${s} to watchlist`);
-        }
-      }
-    });
-  }
-
-  /* ===========================
-     LOAD CANDIDATES
-  =========================== */
   candidatesBtn.onclick = async () => {
     candidatesOutput.innerHTML = "Loading...";
     const res = await fetch(`${API_BASE}/api/v1/candidates`);
     const data = await res.json();
-
     candidatesCache = data.candidates || [];
     renderCandidates(candidatesCache);
-
-    candidatesCache.forEach(c => checkAlerts(c.symbol, c.price));
   };
 
-  renderWatchlist();
+  applyFilter.onclick = () => {
+    const min = parseFloat(minPrice.value) || 0;
+    const max = parseFloat(maxPrice.value) || Infinity;
+    renderCandidates(
+      candidatesCache.filter(c => c.price >= min && c.price <= max)
+    );
+  };
 });
