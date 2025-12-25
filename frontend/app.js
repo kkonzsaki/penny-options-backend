@@ -1,82 +1,151 @@
 console.log("Frontend loaded");
 
-if (typeof API_BASE === "undefined") {
-  alert("API_BASE is not defined. config.js failed to load.");
-  throw new Error("API_BASE missing");
-}
-
-
 /* ===========================
    GLOBAL STATE
 =========================== */
 let candidatesCache = [];
 let optionsCache = [];
-let currentFilter = "all";
+let currentSymbol = "";
+let currentPrice = null;
+let selectedOption = null;
+
+let savedTrades = JSON.parse(localStorage.getItem("savedTrades") || "[]");
+
+/* ===========================
+   STORAGE
+=========================== */
+function saveTrades() {
+  localStorage.setItem("savedTrades", JSON.stringify(savedTrades));
+}
+
+/* ===========================
+   RENDER SAVED TRADES
+=========================== */
+function renderSavedTrades() {
+  const out = document.getElementById("savedTradesOutput");
+  if (!out) return;
+
+  if (!savedTrades.length) {
+    out.innerHTML = "No saved trades";
+    return;
+  }
+
+  let html = `
+    <table>
+      <tr>
+        <th>Symbol</th>
+        <th>Type</th>
+        <th>Strike</th>
+        <th>Ask</th>
+        <th>Cost</th>
+        <th>Breakeven</th>
+        <th></th>
+      </tr>
+  `;
+
+  savedTrades.forEach((t, i) => {
+    html += `
+      <tr>
+        <td>${t.symbol}</td>
+        <td>${t.type.toUpperCase()}</td>
+        <td>${t.strike}</td>
+        <td>${t.ask}</td>
+        <td>$${t.cost.toFixed(2)}</td>
+        <td>$${t.breakeven.toFixed(2)}</td>
+        <td><button data-i="${i}" class="removeTrade">✖</button></td>
+      </tr>
+    `;
+  });
+
+  html += "</table>";
+  out.innerHTML = html;
+
+  document.querySelectorAll(".removeTrade").forEach(btn => {
+    btn.onclick = () => {
+      savedTrades.splice(btn.dataset.i, 1);
+      saveTrades();
+      renderSavedTrades();
+    };
+  });
+}
+
+/* ===========================
+   TRADE BUILDER
+=========================== */
+function renderTradeBuilder() {
+  const out = document.getElementById("tradeBuilder");
+  if (!out || !selectedOption || currentPrice == null) return;
+
+  const ask = selectedOption.ask;
+  const strike = selectedOption.strike;
+  const cost = ask * 100;
+
+  const breakeven =
+    selectedOption.type === "call"
+      ? strike + ask
+      : strike - ask;
+
+  const pnl =
+    selectedOption.type === "call"
+      ? (currentPrice - breakeven) * 100
+      : (breakeven - currentPrice) * 100;
+
+  out.innerHTML = `
+    <h3>Trade Builder</h3>
+    <p><b>${currentSymbol}</b> ${selectedOption.type.toUpperCase()}</p>
+    <p>Strike: ${strike}</p>
+    <p>Ask: $${ask}</p>
+    <p>Cost: $${cost.toFixed(2)}</p>
+    <p>Breakeven: $${breakeven.toFixed(2)}</p>
+    <p>
+      P/L at Current Price:
+      <span style="color:${pnl >= 0 ? "#22c55e" : "#ef4444"}">
+        $${pnl.toFixed(2)}
+      </span>
+    </p>
+    <button id="saveTradeBtn">💾 Save Trade</button>
+  `;
+
+  document.getElementById("saveTradeBtn").onclick = () => {
+    savedTrades.push({
+      symbol: currentSymbol,
+      type: selectedOption.type,
+      strike,
+      ask,
+      cost,
+      breakeven
+    });
+    saveTrades();
+    renderSavedTrades();
+  };
+}
 
 /* ===========================
    MAIN
 =========================== */
 document.addEventListener("DOMContentLoaded", () => {
-
-  /* ===========================
-     THEME TOGGLE
-  =========================== */
-  const themeToggle = document.getElementById("themeToggle");
-  const savedTheme = localStorage.getItem("theme") || "dark";
-
-  if (savedTheme === "light") {
-    document.body.classList.add("light");
-    themeToggle.textContent = "☀️ Light";
-  }
-
-  themeToggle.onclick = () => {
-    document.body.classList.toggle("light");
-    const isLight = document.body.classList.contains("light");
-    localStorage.setItem("theme", isLight ? "light" : "dark");
-    themeToggle.textContent = isLight ? "☀️ Light" : "🌙 Dark";
-  };
-
-  /* ===========================
-     DOM REFERENCES
-  =========================== */
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
   const optionsOutput = document.getElementById("optionsOutput");
-  const minPrice = document.getElementById("minPrice");
-  const maxPrice = document.getElementById("maxPrice");
-  const applyFilter = document.getElementById("applyFilter");
 
-  const showAll = document.getElementById("showAll");
-  const showCalls = document.getElementById("showCalls");
-  const showPuts = document.getElementById("showPuts");
-
-  /* ===========================
-     HELPERS
-  =========================== */
-  function showError(target, message) {
-    target.innerHTML = `<span style="color:#ef4444;">❌ ${message}</span>`;
-  }
-
-  function showLoading(target, message) {
-    target.innerHTML = `<span style="opacity:0.8;">⏳ ${message}</span>`;
-  }
-
-  /* ===========================
-     RENDER CANDIDATES
-  =========================== */
   function renderCandidates(data) {
     if (!data.length) {
-      candidatesOutput.innerHTML = "No candidates found";
+      candidatesOutput.innerHTML = "No candidates";
       return;
     }
 
-    let html = `<table><tr><th>Symbol</th><th>Price</th></tr>`;
+    let html = `
+      <table>
+        <tr><th>Symbol</th><th>Price</th></tr>
+    `;
 
     data.forEach(c => {
       html += `
         <tr>
           <td>
-            <a href="#" class="symbol-link" data-symbol="${c.symbol}">
+            <a href="#" class="symbol-link"
+              data-symbol="${c.symbol}"
+              data-price="${c.price}">
               ${c.symbol}
             </a>
           </td>
@@ -89,43 +158,45 @@ document.addEventListener("DOMContentLoaded", () => {
     candidatesOutput.innerHTML = html;
 
     document.querySelectorAll(".symbol-link").forEach(link => {
-      link.onclick = e => {
-        e.preventDefault();
-        loadOptions(link.dataset.symbol);
-      };
+      link.onclick = loadOptionsChain;
     });
   }
 
-  /* ===========================
-     RENDER OPTIONS
-  =========================== */
-  function renderOptions() {
-    let filtered = optionsCache;
+  async function loadOptionsChain(e) {
+    e.preventDefault();
+    currentSymbol = e.target.dataset.symbol;
+    currentPrice = parseFloat(e.target.dataset.price);
+    selectedOption = null;
 
-    if (currentFilter !== "all") {
-      filtered = optionsCache.filter(o => o.type === currentFilter);
+    optionsOutput.innerHTML = "Loading options…";
+
+    const res = await fetch(`${API_BASE}/api/v1/options/${currentSymbol}`);
+    const data = await res.json();
+
+    let normalized = [];
+
+    if (Array.isArray(data.options)) {
+      normalized = data.options.map(o => ({
+        ...o,
+        type: o.type || "call"
+      }));
+    } else {
+      const calls = (data.calls || []).map(o => ({ ...o, type: "call" }));
+      const puts = (data.puts || []).map(o => ({ ...o, type: "put" }));
+      normalized = [...calls, ...puts];
     }
 
-    if (!filtered.length) {
-      optionsOutput.innerHTML = "No options found";
-      return;
-    }
+    optionsCache = normalized;
 
     let html = `
       <table>
-        <tr>
-          <th>Type</th>
-          <th>Strike</th>
-          <th>Expiration</th>
-          <th>Ask</th>
-        </tr>
+        <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th></tr>
     `;
 
-    filtered.slice(0, 20).forEach(o => {
-      const cls = o.type === "call" ? "call" : "put";
+    optionsCache.slice(0, 12).forEach((o, i) => {
       html += `
-        <tr class="${cls}">
-        <td class="${cls}">${(o.type || "?").toUpperCase()}</td>
+        <tr class="opt" data-i="${i}" style="cursor:pointer">
+          <td>${o.type.toUpperCase()}</td>
           <td>${o.strike}</td>
           <td>${o.expiration}</td>
           <td>${o.ask}</td>
@@ -135,108 +206,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     html += "</table>";
     optionsOutput.innerHTML = html;
+
+    document.querySelectorAll(".opt").forEach(r => {
+      r.onclick = () => {
+        selectedOption = optionsCache[r.dataset.i];
+        renderTradeBuilder();
+      };
+    });
   }
 
-  /* ===========================
-     LOAD OPTIONS (WITH ERRORS)
-  =========================== */
-async function loadOptions(symbol) {
-  optionsOutput.innerHTML = `⏳ Loading options for ${symbol}...`;
-  currentFilter = "all";
-
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-    if (!res.ok) throw new Error("Options request failed");
-
-    const data = await res.json();
-
-    // ✅ NORMALIZE OPTIONS (CRITICAL FIX)
-    let normalized = [];
-
-    if (Array.isArray(data.options)) {
-      normalized = data.options.map(o => ({
-        ...o,
-        type: o.type || "call"
-      }));
-    } else {
-      const calls = (data.calls || []).map(o => ({
-        ...o,
-        type: "call"
-      }));
-
-      const puts = (data.puts || []).map(o => ({
-        ...o,
-        type: "put"
-      }));
-
-      normalized = [...calls, ...puts];
-    }
-
-    if (!normalized.length) {
-      optionsOutput.innerHTML = "No options returned from API";
-      return;
-    }
-
-    optionsCache = normalized;
-    renderOptions();
-
-  } catch (err) {
-    console.error("Options load failed:", err);
-    optionsOutput.innerHTML =
-      `<span style="color:#ef4444;">❌ Failed to load options</span>`;
-  }
-}
-
-
-
-  /* ===========================
-     FILTER BUTTONS
-  =========================== */
-  showAll.onclick = () => {
-    currentFilter = "all";
-    renderOptions();
-  };
-
-  showCalls.onclick = () => {
-    currentFilter = "call";
-    renderOptions();
-  };
-
-  showPuts.onclick = () => {
-    currentFilter = "put";
-    renderOptions();
-  };
-
-  /* ===========================
-     LOAD CANDIDATES (WITH ERRORS)
-  =========================== */
   candidatesBtn.onclick = async () => {
-    showLoading(candidatesOutput, "Loading candidates...");
-
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/candidates`);
-      if (!res.ok) throw new Error("Candidates request failed");
-
-      const data = await res.json();
-      candidatesCache = data.candidates || [];
-      renderCandidates(candidatesCache);
-
-    } catch (err) {
-      console.error(err);
-      showError(candidatesOutput, "Failed to load candidates");
-    }
+    candidatesOutput.innerHTML = "Loading…";
+    const res = await fetch(`${API_BASE}/api/v1/candidates`);
+    const data = await res.json();
+    candidatesCache = data.candidates || [];
+    renderCandidates(candidatesCache);
   };
 
-  /* ===========================
-     PRICE FILTER
-  =========================== */
-  applyFilter.onclick = () => {
-    const min = parseFloat(minPrice.value) || 0;
-    const max = parseFloat(maxPrice.value) || Infinity;
-
-    renderCandidates(
-      candidatesCache.filter(c => c.price >= min && c.price <= max)
-    );
-  };
-
+  renderSavedTrades();
 });
