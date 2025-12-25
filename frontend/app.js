@@ -13,7 +13,7 @@ let currentFilter = "all";
 document.addEventListener("DOMContentLoaded", () => {
 
   /* ===========================
-     THEME TOGGLE (FIXED)
+     THEME TOGGLE
   =========================== */
   const themeToggle = document.getElementById("themeToggle");
   const savedTheme = localStorage.getItem("theme") || "dark";
@@ -45,11 +45,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const showPuts = document.getElementById("showPuts");
 
   /* ===========================
+     HELPERS
+  =========================== */
+  function showError(target, message) {
+    target.innerHTML = `<span style="color:#ef4444;">❌ ${message}</span>`;
+  }
+
+  function showLoading(target, message) {
+    target.innerHTML = `<span style="opacity:0.8;">⏳ ${message}</span>`;
+  }
+
+  /* ===========================
      RENDER CANDIDATES
   =========================== */
   function renderCandidates(data) {
     if (!data.length) {
-      candidatesOutput.innerHTML = "No candidates";
+      candidatesOutput.innerHTML = "No candidates found";
       return;
     }
 
@@ -121,16 +132,24 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* ===========================
-     LOAD OPTIONS
+     LOAD OPTIONS (WITH ERRORS)
   =========================== */
   async function loadOptions(symbol) {
-    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
+    showLoading(optionsOutput, `Loading options for ${symbol}...`);
     currentFilter = "all";
 
-    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-    const data = await res.json();
-    optionsCache = data.options || [];
-    renderOptions();
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
+      if (!res.ok) throw new Error("Options request failed");
+
+      const data = await res.json();
+      optionsCache = data.options || [];
+      renderOptions();
+
+    } catch (err) {
+      console.error(err);
+      showError(optionsOutput, "Failed to load options");
+    }
   }
 
   /* ===========================
@@ -152,14 +171,23 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   /* ===========================
-     LOAD CANDIDATES (FIXED)
+     LOAD CANDIDATES (WITH ERRORS)
   =========================== */
   candidatesBtn.onclick = async () => {
-    candidatesOutput.innerHTML = "Loading...";
-    const res = await fetch(`${API_BASE}/api/v1/candidates`);
-    const data = await res.json();
-    candidatesCache = data.candidates || [];
-    renderCandidates(candidatesCache);
+    showLoading(candidatesOutput, "Loading candidates...");
+
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/candidates`);
+      if (!res.ok) throw new Error("Candidates request failed");
+
+      const data = await res.json();
+      candidatesCache = data.candidates || [];
+      renderCandidates(candidatesCache);
+
+    } catch (err) {
+      console.error(err);
+      showError(candidatesOutput, "Failed to load candidates");
+    }
   };
 
   /* ===========================
