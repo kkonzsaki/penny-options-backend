@@ -49,6 +49,7 @@
       padding: 6px 12px;
       cursor: pointer;
       border-radius: 4px;
+      margin-right: 6px;
     }
 
     button:hover {
@@ -103,6 +104,10 @@
       overflow-y: auto;
       margin-top: 10px;
     }
+
+    .filter-bar {
+      margin-top: 10px;
+    }
   </style>
 </head>
 
@@ -113,6 +118,14 @@
   </div>
 
   <h2>Options Chain</h2>
+
+  <!-- CALL / PUT FILTERS -->
+  <div class="filter-bar">
+    <button id="showAll">All</button>
+    <button id="showCalls">Calls</button>
+    <button id="showPuts">Puts</button>
+  </div>
+
   <div id="optionsOutput">Click a symbol below</div>
 
   <section>
