@@ -125,7 +125,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const cls = o.type === "call" ? "call" : "put";
       html += `
         <tr class="${cls}">
-          <td class="${cls}">${o.type.toUpperCase()}</td>
+        <td class="${cls}">${(o.type || "?").toUpperCase()}</td>
           <td>${o.strike}</td>
           <td>${o.expiration}</td>
           <td>${o.ask}</td>
