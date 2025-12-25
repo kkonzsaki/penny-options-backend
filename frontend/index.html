@@ -71,15 +71,12 @@
       margin: 10px 0;
     }
 
-    .delta-pos { color: #22c55e; }
-    .delta-neg { color: #ef4444; }
-    .theta-neg { color: #f59e0b; }
-
     .profit { color: #22c55e; font-weight: bold; }
     .loss { color: #ef4444; font-weight: bold; }
 
     #optionsOutput,
-    #candidatesOutput {
+    #candidatesOutput,
+    #savedTrades {
       max-height: 400px;
       overflow-y: auto;
     }
@@ -106,17 +103,20 @@
     <option value="ALL">All Expirations</option>
   </select>
 
-  <input type="number" id="maxAsk" placeholder="Max Ask (0.20)" step="0.01" />
+  <input type="number" id="maxAsk" placeholder="Max Ask" step="0.01" />
 </div>
 
 <div id="optionsOutput">Click a symbol below</div>
-
 <div id="tradeBuilder"></div>
 
 <hr />
 
-<h2>Penny Option Candidates</h2>
+<h2>Saved Trades</h2>
+<div id="savedTrades"></div>
 
+<hr />
+
+<h2>Penny Option Candidates</h2>
 <button id="candidatesBtn">Load Candidates</button>
 
 <div class="controls">
