@@ -67,15 +67,16 @@
       background: #1e293b;
     }
 
-    a.symbol-link {
-      color: #38bdf8;
-      font-weight: bold;
-      text-decoration: none;
-    }
-
     .controls {
       margin: 10px 0;
     }
+
+    .delta-pos { color: #22c55e; }
+    .delta-neg { color: #ef4444; }
+    .theta-neg { color: #f59e0b; }
+
+    .profit { color: #22c55e; font-weight: bold; }
+    .loss { color: #ef4444; font-weight: bold; }
 
     #optionsOutput,
     #candidatesOutput {
@@ -83,14 +84,10 @@
       overflow-y: auto;
     }
 
-    .profit {
-      color: #22c55e;
+    a.symbol-link {
+      color: #38bdf8;
       font-weight: bold;
-    }
-
-    .loss {
-      color: #ef4444;
-      font-weight: bold;
+      text-decoration: none;
     }
   </style>
 </head>
@@ -99,7 +96,6 @@
 
 <h1>Penny Options Scout</h1>
 
-<!-- OPTIONS -->
 <h2>Options Chain</h2>
 
 <div class="controls">
@@ -115,12 +111,10 @@
 
 <div id="optionsOutput">Click a symbol below</div>
 
-<!-- PROFIT CALCULATOR -->
 <div id="tradeBuilder"></div>
 
 <hr />
 
-<!-- CANDIDATES -->
 <h2>Penny Option Candidates</h2>
 
 <button id="candidatesBtn">Load Candidates</button>
