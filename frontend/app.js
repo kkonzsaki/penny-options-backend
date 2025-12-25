@@ -1,24 +1,6 @@
 console.log("Frontend loaded");
 
 /* ===========================
-   THEME TOGGLE
-=========================== */
-const themeToggle = document.getElementById("themeToggle");
-const savedTheme = localStorage.getItem("theme") || "dark";
-
-if (savedTheme === "light") {
-  document.body.classList.add("light");
-  themeToggle.textContent = "☀️ Light";
-}
-
-themeToggle.onclick = () => {
-  document.body.classList.toggle("light");
-  const isLight = document.body.classList.contains("light");
-  localStorage.setItem("theme", isLight ? "light" : "dark");
-  themeToggle.textContent = isLight ? "☀️ Light" : "🌙 Dark";
-};
-
-/* ===========================
    GLOBAL STATE
 =========================== */
 let candidatesCache = [];
@@ -29,6 +11,28 @@ let currentFilter = "all";
    MAIN
 =========================== */
 document.addEventListener("DOMContentLoaded", () => {
+
+  /* ===========================
+     THEME TOGGLE (FIXED)
+  =========================== */
+  const themeToggle = document.getElementById("themeToggle");
+  const savedTheme = localStorage.getItem("theme") || "dark";
+
+  if (savedTheme === "light") {
+    document.body.classList.add("light");
+    themeToggle.textContent = "☀️ Light";
+  }
+
+  themeToggle.onclick = () => {
+    document.body.classList.toggle("light");
+    const isLight = document.body.classList.contains("light");
+    localStorage.setItem("theme", isLight ? "light" : "dark");
+    themeToggle.textContent = isLight ? "☀️ Light" : "🌙 Dark";
+  };
+
+  /* ===========================
+     DOM REFERENCES
+  =========================== */
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
   const optionsOutput = document.getElementById("optionsOutput");
@@ -40,6 +44,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const showCalls = document.getElementById("showCalls");
   const showPuts = document.getElementById("showPuts");
 
+  /* ===========================
+     RENDER CANDIDATES
+  =========================== */
   function renderCandidates(data) {
     if (!data.length) {
       candidatesOutput.innerHTML = "No candidates";
@@ -72,6 +79,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  /* ===========================
+     RENDER OPTIONS
+  =========================== */
   function renderOptions() {
     let filtered = optionsCache;
 
@@ -110,6 +120,9 @@ document.addEventListener("DOMContentLoaded", () => {
     optionsOutput.innerHTML = html;
   }
 
+  /* ===========================
+     LOAD OPTIONS
+  =========================== */
   async function loadOptions(symbol) {
     optionsOutput.innerHTML = `Loading options for ${symbol}...`;
     currentFilter = "all";
@@ -120,6 +133,9 @@ document.addEventListener("DOMContentLoaded", () => {
     renderOptions();
   }
 
+  /* ===========================
+     FILTER BUTTONS
+  =========================== */
   showAll.onclick = () => {
     currentFilter = "all";
     renderOptions();
@@ -135,6 +151,9 @@ document.addEventListener("DOMContentLoaded", () => {
     renderOptions();
   };
 
+  /* ===========================
+     LOAD CANDIDATES (FIXED)
+  =========================== */
   candidatesBtn.onclick = async () => {
     candidatesOutput.innerHTML = "Loading...";
     const res = await fetch(`${API_BASE}/api/v1/candidates`);
@@ -143,11 +162,16 @@ document.addEventListener("DOMContentLoaded", () => {
     renderCandidates(candidatesCache);
   };
 
+  /* ===========================
+     PRICE FILTER
+  =========================== */
   applyFilter.onclick = () => {
     const min = parseFloat(minPrice.value) || 0;
     const max = parseFloat(maxPrice.value) || Infinity;
+
     renderCandidates(
       candidatesCache.filter(c => c.price >= min && c.price <= max)
     );
   };
+
 });
