@@ -2,7 +2,8 @@
    GLOBAL CONFIG
 =========================== */
 
-http://localhost:8000/api/v1/candidates
+const API_BASE = "http://localhost:8000";
+
  
 const SCANNER_INTERVAL_MS = 15000;
 
