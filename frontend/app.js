@@ -6,6 +6,8 @@ console.log("Frontend loaded");
 let candidatesCache = [];
 let optionsCache = [];
 let currentFilter = "all";
+let currentSymbol = null;
+let optionsRefreshTimer = null;
 let payoffChart = null;
 
 /* ===========================
@@ -125,16 +127,16 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   /* =======================
-     LOAD OPTIONS
+     LOAD OPTIONS + AUTO REFRESH
   ======================= */
   async function loadOptions(symbol) {
+    currentSymbol = symbol;
     optionsOutput.innerHTML = `Loading options for ${symbol}...`;
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
       const data = await res.json();
 
-      // 🔥 NORMALIZE BACKEND DATA
       optionsCache = (data.options || []).map(o => ({
         type:
           o.type?.toLowerCase() ||
@@ -147,6 +149,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       currentFilter = "all";
       renderOptions();
+
+      // 🔁 AUTO REFRESH (every 30s)
+      if (optionsRefreshTimer) clearInterval(optionsRefreshTimer);
+      optionsRefreshTimer = setInterval(() => {
+        if (currentSymbol) loadOptions(currentSymbol);
+      }, 30000);
+
     } catch (err) {
       console.error(err);
       optionsOutput.innerHTML = "Option chain failed to load";
