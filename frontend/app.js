@@ -1,6 +1,7 @@
 console.log("Frontend loaded");
 
 let chart = null;
+let alerts = JSON.parse(localStorage.getItem("alerts") || "[]");
 
 /* ===========================
    THEME TOGGLE
@@ -28,6 +29,75 @@ let optionsCache = [];
 let currentFilter = "all";
 
 /* ===========================
+   ALERTS
+=========================== */
+function saveAlerts() {
+  localStorage.setItem("alerts", JSON.stringify(alerts));
+}
+
+function renderAlerts() {
+  const out = document.getElementById("alertsOutput");
+  if (!alerts.length) {
+    out.innerHTML = "No alerts set";
+    return;
+  }
+
+  let html = `<table>
+    <tr><th>Symbol</th><th>Condition</th><th></th></tr>`;
+
+  alerts.forEach((a, i) => {
+    html += `
+      <tr>
+        <td>${a.symbol}</td>
+        <td>${a.type} ${a.value}</td>
+        <td><button data-i="${i}" class="delAlert">✖</button></td>
+      </tr>`;
+  });
+
+  html += "</table>";
+  out.innerHTML = html;
+
+  document.querySelectorAll(".delAlert").forEach(btn => {
+    btn.onclick = () => {
+      alerts.splice(btn.dataset.i, 1);
+      saveAlerts();
+      renderAlerts();
+    };
+  });
+}
+
+function checkAlerts(symbol, price, prevPrice) {
+  alerts = alerts.filter(a => {
+    if (a.symbol !== symbol) return true;
+
+    if (a.type === "above" && price >= a.value) {
+      alert(`🔔 ${symbol} ABOVE ${a.value}`);
+      return false;
+    }
+    if (a.type === "below" && price <= a.value) {
+      alert(`🔔 ${symbol} BELOW ${a.value}`);
+      return false;
+    }
+
+    if (prevPrice) {
+      const pct = ((price - prevPrice) / prevPrice) * 100;
+      if (a.type === "percent_up" && pct >= a.value) {
+        alert(`📈 ${symbol} UP ${pct.toFixed(2)}%`);
+        return false;
+      }
+      if (a.type === "percent_down" && pct <= -a.value) {
+        alert(`📉 ${symbol} DOWN ${pct.toFixed(2)}%`);
+        return false;
+      }
+    }
+    return true;
+  });
+
+  saveAlerts();
+  renderAlerts();
+}
+
+/* ===========================
    DOM READY
 =========================== */
 document.addEventListener("DOMContentLoaded", () => {
@@ -41,6 +111,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const showAll = document.getElementById("showAll");
   const showCalls = document.getElementById("showCalls");
   const showPuts = document.getElementById("showPuts");
+
+  const alertSymbol = document.getElementById("alertSymbol");
+  const alertType = document.getElementById("alertType");
+  const alertValue = document.getElementById("alertValue");
+  const addAlert = document.getElementById("addAlert");
 
   function renderCandidates(data) {
     let html = `<table><tr><th>Symbol</th><th>Price</th></tr>`;
@@ -62,6 +137,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  async function loadOptions(symbol) {
+    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
+    const data = await res.json();
+    optionsCache = data.options || [];
+    renderOptions();
+  }
+
   function renderOptions() {
     let filtered = currentFilter === "all"
       ? optionsCache
@@ -73,14 +155,7 @@ document.addEventListener("DOMContentLoaded", () => {
     filtered.slice(0, 20).forEach(o => {
       html += `
         <tr class="${o.type}">
-          <td>
-            <a href="#" class="option-link"
-               data-type="${o.type}"
-               data-strike="${o.strike}"
-               data-ask="${o.ask}">
-               ${o.type.toUpperCase()}
-            </a>
-          </td>
+          <td>${o.type.toUpperCase()}</td>
           <td>${o.strike}</td>
           <td>${o.expiration}</td>
           <td>${o.ask}</td>
@@ -89,60 +164,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     html += "</table>";
     optionsOutput.innerHTML = html;
-
-    document.querySelectorAll(".option-link").forEach(link => {
-      link.onclick = e => {
-        e.preventDefault();
-        drawPayoff(link.dataset);
-      };
-    });
-  }
-
-  async function loadOptions(symbol) {
-    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-    const data = await res.json();
-    optionsCache = data.options || [];
-    renderOptions();
-  }
-
-  function drawPayoff(o) {
-    const strike = Number(o.strike);
-    const premium = Number(o.ask);
-    const isCall = o.type === "call";
-
-    const prices = [];
-    const pnl = [];
-
-    for (let p = strike * 0.7; p <= strike * 1.3; p += strike * 0.02) {
-      prices.push(p.toFixed(2));
-      let value = isCall
-        ? Math.max(p - strike, 0) - premium
-        : Math.max(strike - p, 0) - premium;
-      pnl.push((value * 100).toFixed(2));
-    }
-
-    if (chart) chart.destroy();
-
-    chart = new Chart(document.getElementById("payoffChart"), {
-      type: "line",
-      data: {
-        labels: prices,
-        datasets: [{
-          label: "P/L at Expiration ($)",
-          data: pnl,
-          borderColor: isCall ? "#22c55e" : "#ef4444",
-          fill: false,
-          tension: 0.3
-        }]
-      },
-      options: {
-        plugins: { legend: { display: false }},
-        scales: {
-          x: { title: { display: true, text: "Stock Price" }},
-          y: { title: { display: true, text: "Profit / Loss ($)" }}
-        }
-      }
-    });
   }
 
   showAll.onclick = () => { currentFilter = "all"; renderOptions(); };
@@ -150,9 +171,16 @@ document.addEventListener("DOMContentLoaded", () => {
   showPuts.onclick = () => { currentFilter = "put"; renderOptions(); };
 
   candidatesBtn.onclick = async () => {
+    const prev = Object.fromEntries(candidatesCache.map(c => [c.symbol, c.price]));
+
     const res = await fetch(`${API_BASE}/api/v1/candidates`);
     const data = await res.json();
     candidatesCache = data.candidates || [];
+
+    candidatesCache.forEach(c => {
+      checkAlerts(c.symbol, c.price, prev[c.symbol]);
+    });
+
     renderCandidates(candidatesCache);
   };
 
@@ -161,4 +189,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const max = Number(maxPrice.value) || Infinity;
     renderCandidates(candidatesCache.filter(c => c.price >= min && c.price <= max));
   };
+
+  addAlert.onclick = () => {
+    if (!alertSymbol.value || !alertValue.value) return;
+
+    alerts.push({
+      symbol: alertSymbol.value.toUpperCase(),
+      type: alertType.value,
+      value: Number(alertValue.value)
+    });
+
+    saveAlerts();
+    renderAlerts();
+    alertSymbol.value = alertValue.value = "";
+  };
+
+  renderAlerts();
 });
