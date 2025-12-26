@@ -1,10 +1,23 @@
 console.log("Frontend loaded");
 
-let chart = null;
+/* ===========================
+   GLOBAL STATE
+=========================== */
+let candidatesCache = [];
+let previousPrices = {};
+let optionsCache = [];
+let currentFilter = "all";
+
 let alerts = JSON.parse(localStorage.getItem("alerts") || "[]");
 
 /* ===========================
-   THEME TOGGLE
+   SCANNER STATE
+=========================== */
+let scannerRunning = false;
+let scannerInterval = null;
+
+/* ===========================
+   THEME
 =========================== */
 const themeToggle = document.getElementById("themeToggle");
 const savedTheme = localStorage.getItem("theme") || "dark";
@@ -22,19 +35,15 @@ themeToggle.onclick = () => {
 };
 
 /* ===========================
-   GLOBAL STATE
-=========================== */
-let candidatesCache = [];
-let optionsCache = [];
-let currentFilter = "all";
-
-/* ===========================
-   ALERTS
+   ALERT STORAGE
 =========================== */
 function saveAlerts() {
   localStorage.setItem("alerts", JSON.stringify(alerts));
 }
 
+/* ===========================
+   ALERT RENDER
+=========================== */
 function renderAlerts() {
   const out = document.getElementById("alertsOutput");
   if (!alerts.length) {
@@ -66,44 +75,53 @@ function renderAlerts() {
   });
 }
 
-function checkAlerts(symbol, price, prevPrice) {
-  alerts = alerts.filter(a => {
-    if (a.symbol !== symbol) return true;
-
-    if (a.type === "above" && price >= a.value) {
-      alert(`🔔 ${symbol} ABOVE ${a.value}`);
-      return false;
-    }
-    if (a.type === "below" && price <= a.value) {
-      alert(`🔔 ${symbol} BELOW ${a.value}`);
-      return false;
-    }
-
-    if (prevPrice) {
-      const pct = ((price - prevPrice) / prevPrice) * 100;
-      if (a.type === "percent_up" && pct >= a.value) {
-        alert(`📈 ${symbol} UP ${pct.toFixed(2)}%`);
-        return false;
-      }
-      if (a.type === "percent_down" && pct <= -a.value) {
-        alert(`📉 ${symbol} DOWN ${pct.toFixed(2)}%`);
-        return false;
-      }
-    }
-    return true;
-  });
-
-  saveAlerts();
-  renderAlerts();
+/* ===========================
+   SCANNER LOG
+=========================== */
+function logScanner(msg) {
+  const log = document.getElementById("scannerLog");
+  const time = new Date().toLocaleTimeString();
+  log.innerHTML = `<div>[${time}] ${msg}</div>` + log.innerHTML;
 }
 
 /* ===========================
-   DOM READY
+   SCANNER RULES
+=========================== */
+function runScanner(newCandidates) {
+  newCandidates.forEach(c => {
+    const prev = previousPrices[c.symbol];
+    if (!prev) return;
+
+    const pct = ((c.price - prev) / prev) * 100;
+
+    if (pct >= 5) {
+      alert(`🚀 ${c.symbol} UP ${pct.toFixed(2)}%`);
+      logScanner(`🚀 ${c.symbol} UP ${pct.toFixed(2)}%`);
+    }
+
+    if (pct <= -5) {
+      alert(`📉 ${c.symbol} DOWN ${pct.toFixed(2)}%`);
+      logScanner(`📉 ${c.symbol} DOWN ${pct.toFixed(2)}%`);
+    }
+
+    if (c.price <= 1) {
+      logScanner(`💸 ${c.symbol} under $1 (${c.price})`);
+    }
+
+    if (Math.abs(pct) >= 8) {
+      logScanner(`⚡ ${c.symbol} VOLATILE ${pct.toFixed(2)}%`);
+    }
+  });
+}
+
+/* ===========================
+   MAIN
 =========================== */
 document.addEventListener("DOMContentLoaded", () => {
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
   const optionsOutput = document.getElementById("optionsOutput");
+
   const minPrice = document.getElementById("minPrice");
   const maxPrice = document.getElementById("maxPrice");
   const applyFilter = document.getElementById("applyFilter");
@@ -112,17 +130,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const showCalls = document.getElementById("showCalls");
   const showPuts = document.getElementById("showPuts");
 
-  const alertSymbol = document.getElementById("alertSymbol");
-  const alertType = document.getElementById("alertType");
-  const alertValue = document.getElementById("alertValue");
-  const addAlert = document.getElementById("addAlert");
+  const scannerToggle = document.getElementById("scannerToggle");
+  const scannerStatus = document.getElementById("scannerStatus");
 
   function renderCandidates(data) {
     let html = `<table><tr><th>Symbol</th><th>Price</th></tr>`;
     data.forEach(c => {
       html += `
         <tr>
-          <td><a href="#" class="symbol-link" data-symbol="${c.symbol}">${c.symbol}</a></td>
+          <td>
+            <a href="#" class="symbol-link" data-symbol="${c.symbol}">
+              ${c.symbol}
+            </a>
+          </td>
           <td>${c.price}</td>
         </tr>`;
     });
@@ -138,6 +158,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function loadOptions(symbol) {
+    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
     const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
     const data = await res.json();
     optionsCache = data.options || [];
@@ -148,6 +169,11 @@ document.addEventListener("DOMContentLoaded", () => {
     let filtered = currentFilter === "all"
       ? optionsCache
       : optionsCache.filter(o => o.type === currentFilter);
+
+    if (!filtered.length) {
+      optionsOutput.innerHTML = "No options";
+      return;
+    }
 
     let html = `<table>
       <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th></tr>`;
@@ -171,37 +197,47 @@ document.addEventListener("DOMContentLoaded", () => {
   showPuts.onclick = () => { currentFilter = "put"; renderOptions(); };
 
   candidatesBtn.onclick = async () => {
-    const prev = Object.fromEntries(candidatesCache.map(c => [c.symbol, c.price]));
-
     const res = await fetch(`${API_BASE}/api/v1/candidates`);
     const data = await res.json();
-    candidatesCache = data.candidates || [];
 
-    candidatesCache.forEach(c => {
-      checkAlerts(c.symbol, c.price, prev[c.symbol]);
-    });
+    const newData = data.candidates || [];
 
+    runScanner(newData);
+
+    previousPrices = Object.fromEntries(
+      newData.map(c => [c.symbol, c.price])
+    );
+
+    candidatesCache = newData;
     renderCandidates(candidatesCache);
   };
 
   applyFilter.onclick = () => {
     const min = Number(minPrice.value) || 0;
     const max = Number(maxPrice.value) || Infinity;
-    renderCandidates(candidatesCache.filter(c => c.price >= min && c.price <= max));
+    renderCandidates(
+      candidatesCache.filter(c => c.price >= min && c.price <= max)
+    );
   };
 
-  addAlert.onclick = () => {
-    if (!alertSymbol.value || !alertValue.value) return;
+  scannerToggle.onclick = () => {
+    scannerRunning = !scannerRunning;
 
-    alerts.push({
-      symbol: alertSymbol.value.toUpperCase(),
-      type: alertType.value,
-      value: Number(alertValue.value)
-    });
+    if (scannerRunning) {
+      scannerStatus.textContent = "Running (60s)";
+      scannerToggle.textContent = "⏸ Stop Scanner";
 
-    saveAlerts();
-    renderAlerts();
-    alertSymbol.value = alertValue.value = "";
+      scannerInterval = setInterval(() => {
+        candidatesBtn.click();
+      }, 60000);
+
+      logScanner("Scanner started");
+    } else {
+      clearInterval(scannerInterval);
+      scannerStatus.textContent = "Stopped";
+      scannerToggle.textContent = "▶ Start Scanner";
+      logScanner("Scanner stopped");
+    }
   };
 
   renderAlerts();
