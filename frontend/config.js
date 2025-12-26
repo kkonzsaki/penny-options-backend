@@ -1,7 +1,14 @@
-// config.js
-// ===========================
-// BACKEND CONFIG
-// ===========================
+/* ===========================
+   GLOBAL CONFIG
+=========================== */
 
-// ✅ CHANGE THIS ONLY IF YOUR BACKEND URL CHANGES
-window.API_BASE = "https://penny-options-backend.onrender.com";
+// CHANGE THIS if backend is remote
+const API_BASE = "http://localhost:5000";
+
+// Scanner settings
+const SCANNER_INTERVAL_MS = 15000;
+
+// Validation
+if (!API_BASE) {
+  console.error("API_BASE is not defined");
+}
