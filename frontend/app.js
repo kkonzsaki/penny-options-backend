@@ -1,11 +1,6 @@
 console.log("Frontend loaded");
 
 /* ===========================
-   CONFIG
-=========================== */
-const API_BASE = window.API_BASE || ""; // SAFE DEFAULT
-
-/* ===========================
    GLOBAL STATE
 =========================== */
 let candidatesCache = [];
@@ -14,19 +9,25 @@ let optionsCache = [];
 let currentFilter = "all";
 
 let alerts = JSON.parse(localStorage.getItem("alerts") || "[]");
+let payoffChart = null;
 
 /* ===========================
-   SCANNER STATE
+   THEME
 =========================== */
-let scannerRunning = false;
-let scannerInterval = null;
+const themeToggle = document.getElementById("themeToggle");
+const savedTheme = localStorage.getItem("theme") || "dark";
 
-/* ===========================
-   HELPERS
-=========================== */
-function safeEl(id) {
-  return document.getElementById(id);
+if (savedTheme === "light") {
+  document.body.classList.add("light");
+  themeToggle.textContent = "☀️ Light";
 }
+
+themeToggle.onclick = () => {
+  document.body.classList.toggle("light");
+  const isLight = document.body.classList.contains("light");
+  localStorage.setItem("theme", isLight ? "light" : "dark");
+  themeToggle.textContent = isLight ? "☀️ Light" : "🌙 Dark";
+};
 
 /* ===========================
    ALERT STORAGE
@@ -39,8 +40,7 @@ function saveAlerts() {
    ALERT RENDER
 =========================== */
 function renderAlerts() {
-  const out = safeEl("alertsOutput");
-  if (!out) return;
+  const out = document.getElementById("alertsOutput");
 
   if (!alerts.length) {
     out.innerHTML = "No alerts set";
@@ -72,40 +72,55 @@ function renderAlerts() {
 }
 
 /* ===========================
-   SCANNER LOG
+   PAYOFF CHART
 =========================== */
-function logScanner(msg) {
-  const log = safeEl("scannerLog");
-  if (!log) return;
+function renderPayoffChart(option) {
+  const ctx = document.getElementById("payoffChart");
+  if (!ctx) return;
 
-  const time = new Date().toLocaleTimeString();
-  log.innerHTML = `<div>[${time}] ${msg}</div>` + log.innerHTML;
-}
+  const prices = [];
+  const payoff = [];
 
-/* ===========================
-   SCANNER RULES
-=========================== */
-function runScanner(newCandidates) {
-  newCandidates.forEach(c => {
-    const prev = previousPrices[c.symbol];
-    if (!prev || !c.price) return;
+  const strike = option.strike;
+  const ask = option.ask;
+  const isCall = option.type === "call";
 
-    const pct = ((c.price - prev) / prev) * 100;
+  for (let p = strike * 0.5; p <= strike * 1.5; p += strike * 0.05) {
+    prices.push(p.toFixed(2));
 
-    if (pct >= 5) {
-      logScanner(`🚀 ${c.symbol} UP ${pct.toFixed(2)}%`);
+    let value;
+    if (isCall) {
+      value = Math.max(p - strike, 0) - ask;
+    } else {
+      value = Math.max(strike - p, 0) - ask;
     }
 
-    if (pct <= -5) {
-      logScanner(`📉 ${c.symbol} DOWN ${pct.toFixed(2)}%`);
-    }
+    payoff.push(value.toFixed(2));
+  }
 
-    if (c.price <= 1) {
-      logScanner(`💸 ${c.symbol} under $1 (${c.price})`);
-    }
+  if (payoffChart) payoffChart.destroy();
 
-    if (Math.abs(pct) >= 8) {
-      logScanner(`⚡ ${c.symbol} VOLATILE ${pct.toFixed(2)}%`);
+  payoffChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: prices,
+      datasets: [{
+        label: `${option.type.toUpperCase()} Payoff`,
+        data: payoff,
+        borderWidth: 2,
+        tension: 0.3,
+        borderColor: isCall ? "#22c55e" : "#ef4444"
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: true }
+      },
+      scales: {
+        x: { title: { display: true, text: "Stock Price" }},
+        y: { title: { display: true, text: "Profit / Loss ($)" }}
+      }
     }
   });
 }
@@ -114,58 +129,41 @@ function runScanner(newCandidates) {
    MAIN
 =========================== */
 document.addEventListener("DOMContentLoaded", () => {
+  const candidatesBtn = document.getElementById("candidatesBtn");
+  const candidatesOutput = document.getElementById("candidatesOutput");
+  const optionsOutput = document.getElementById("optionsOutput");
 
-  /* ===== THEME ===== */
-  const themeToggle = safeEl("themeToggle");
-  const savedTheme = localStorage.getItem("theme") || "dark";
+  const minPrice = document.getElementById("minPrice");
+  const maxPrice = document.getElementById("maxPrice");
+  const applyFilter = document.getElementById("applyFilter");
 
-  if (savedTheme === "light") {
-    document.body.classList.add("light");
-    if (themeToggle) themeToggle.textContent = "☀️ Light";
-  }
+  const showAll = document.getElementById("showAll");
+  const showCalls = document.getElementById("showCalls");
+  const showPuts = document.getElementById("showPuts");
 
-  if (themeToggle) {
-    themeToggle.onclick = () => {
-      document.body.classList.toggle("light");
-      const isLight = document.body.classList.contains("light");
-      localStorage.setItem("theme", isLight ? "light" : "dark");
-      themeToggle.textContent = isLight ? "☀️ Light" : "🌙 Dark";
-    };
-  }
+  const addAlertBtn = document.getElementById("addAlert");
 
-  /* ===== ELEMENTS ===== */
-  const candidatesBtn = safeEl("candidatesBtn");
-  const candidatesOutput = safeEl("candidatesOutput");
-  const optionsOutput = safeEl("optionsOutput");
-
-  const minPrice = safeEl("minPrice");
-  const maxPrice = safeEl("maxPrice");
-  const applyFilter = safeEl("applyFilter");
-
-  const showAll = safeEl("showAll");
-  const showCalls = safeEl("showCalls");
-  const showPuts = safeEl("showPuts");
-
-  const scannerToggle = safeEl("scannerToggle");
-  const scannerStatus = safeEl("scannerStatus");
-
-  /* ===== RENDER CANDIDATES ===== */
+  /* ===== Candidates ===== */
   function renderCandidates(data) {
-    if (!candidatesOutput) return;
-
     if (!data.length) {
-      candidatesOutput.innerHTML = "No candidates returned";
+      candidatesOutput.innerHTML = "No candidates found";
       return;
     }
 
     let html = `<table><tr><th>Symbol</th><th>Price</th></tr>`;
+
     data.forEach(c => {
       html += `
         <tr>
-          <td><a href="#" class="symbol-link" data-symbol="${c.symbol}">${c.symbol}</a></td>
+          <td>
+            <a href="#" class="symbol-link" data-symbol="${c.symbol}">
+              ${c.symbol}
+            </a>
+          </td>
           <td>${c.price}</td>
         </tr>`;
     });
+
     html += "</table>";
     candidatesOutput.innerHTML = html;
 
@@ -177,16 +175,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  /* ===== LOAD OPTIONS ===== */
+  /* ===== Options ===== */
   async function loadOptions(symbol) {
-    if (!optionsOutput) return;
-
     optionsOutput.innerHTML = `Loading options for ${symbol}...`;
 
     try {
       const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
       const data = await res.json();
-      optionsCache = Array.isArray(data.options) ? data.options : [];
+      optionsCache = data.options || [];
+      currentFilter = "all";
       renderOptions();
     } catch (err) {
       optionsOutput.innerHTML = "Failed to load options";
@@ -194,98 +191,91 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  /* ===== RENDER OPTIONS ===== */
   function renderOptions() {
-    if (!optionsOutput) return;
-
-    const filtered = currentFilter === "all"
+    let filtered = currentFilter === "all"
       ? optionsCache
-      : optionsCache.filter(o => o && o.type === currentFilter);
+      : optionsCache.filter(o => o.type === currentFilter);
 
     if (!filtered.length) {
-      optionsOutput.innerHTML = "No options";
+      optionsOutput.innerHTML = "No options found";
       return;
     }
 
     let html = `<table>
-      <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th></tr>`;
+      <tr><th>Type</th><th>Strike</th><th>Expiration</th><th>Ask</th></tr>`;
 
     filtered.slice(0, 20).forEach(o => {
-      const type = (o.type || "").toUpperCase() || "N/A";
       html += `
-        <tr>
-          <td>${type}</td>
-          <td>${o.strike ?? "-"}</td>
-          <td>${o.expiration ?? "-"}</td>
-          <td>${o.ask ?? "-"}</td>
+        <tr class="${o.type}" data-strike="${o.strike}">
+          <td>${o.type.toUpperCase()}</td>
+          <td>${o.strike}</td>
+          <td>${o.expiration}</td>
+          <td>${o.ask}</td>
         </tr>`;
     });
 
     html += "</table>";
     optionsOutput.innerHTML = html;
+
+    optionsOutput.querySelectorAll("tr").forEach((row, i) => {
+      if (i === 0) return;
+      row.onclick = () => {
+        const option = filtered[i - 1];
+        renderPayoffChart(option);
+      };
+    });
   }
 
-  /* ===== FILTER BUTTONS ===== */
-  if (showAll) showAll.onclick = () => { currentFilter = "all"; renderOptions(); };
-  if (showCalls) showCalls.onclick = () => { currentFilter = "call"; renderOptions(); };
-  if (showPuts) showPuts.onclick = () => { currentFilter = "put"; renderOptions(); };
+  showAll.onclick = () => { currentFilter = "all"; renderOptions(); };
+  showCalls.onclick = () => { currentFilter = "call"; renderOptions(); };
+  showPuts.onclick = () => { currentFilter = "put"; renderOptions(); };
 
-  /* ===== LOAD CANDIDATES ===== */
-  if (candidatesBtn) {
-    candidatesBtn.onclick = async () => {
-      if (candidatesOutput) candidatesOutput.innerHTML = "Loading candidates...";
+  /* ===== Load Candidates ===== */
+  candidatesBtn.onclick = async () => {
+    candidatesOutput.innerHTML = "Loading...";
 
-      try {
-        const res = await fetch(`${API_BASE}/api/v1/candidates`);
-        const data = await res.json();
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/candidates`);
+      const data = await res.json();
 
-        const newData = Array.isArray(data.candidates) ? data.candidates : [];
+      candidatesCache = data.candidates || [];
 
-        runScanner(newData);
-
-        previousPrices = Object.fromEntries(
-          newData.map(c => [c.symbol, c.price])
-        );
-
-        candidatesCache = newData;
-        renderCandidates(candidatesCache);
-      } catch (err) {
-        if (candidatesOutput) candidatesOutput.innerHTML = "Failed to load candidates";
-        console.error(err);
-      }
-    };
-  }
-
-  /* ===== PRICE FILTER ===== */
-  if (applyFilter) {
-    applyFilter.onclick = () => {
-      const min = Number(minPrice?.value) || 0;
-      const max = Number(maxPrice?.value) || Infinity;
-
-      renderCandidates(
-        candidatesCache.filter(c => c.price >= min && c.price <= max)
+      previousPrices = Object.fromEntries(
+        candidatesCache.map(c => [c.symbol, c.price])
       );
-    };
-  }
 
-  /* ===== SCANNER TOGGLE ===== */
-  if (scannerToggle) {
-    scannerToggle.onclick = () => {
-      scannerRunning = !scannerRunning;
+      renderCandidates(candidatesCache);
+    } catch (err) {
+      candidatesOutput.innerHTML = "Failed to load candidates";
+      console.error(err);
+    }
+  };
 
-      if (scannerRunning) {
-        if (scannerStatus) scannerStatus.textContent = "Running (60s)";
-        scannerToggle.textContent = "⏸ Stop Scanner";
-        scannerInterval = setInterval(() => candidatesBtn?.click(), 60000);
-        logScanner("Scanner started");
-      } else {
-        clearInterval(scannerInterval);
-        if (scannerStatus) scannerStatus.textContent = "Stopped";
-        scannerToggle.textContent = "▶ Start Scanner";
-        logScanner("Scanner stopped");
-      }
-    };
-  }
+  /* ===== Price Filter ===== */
+  applyFilter.onclick = () => {
+    const min = Number(minPrice.value) || 0;
+    const max = Number(maxPrice.value) || Infinity;
+
+    renderCandidates(
+      candidatesCache.filter(c => c.price >= min && c.price <= max)
+    );
+  };
+
+  /* ===== Alerts Add ===== */
+  addAlertBtn.onclick = () => {
+    const symbol = document.getElementById("alertSymbol").value.toUpperCase();
+    const type = document.getElementById("alertType").value;
+    const value = Number(document.getElementById("alertValue").value);
+
+    if (!symbol || !value) {
+      alert("Invalid alert");
+      return;
+    }
+
+    alerts.push({ symbol, type, value });
+    saveAlerts();
+    renderAlerts();
+  };
 
   renderAlerts();
 });
