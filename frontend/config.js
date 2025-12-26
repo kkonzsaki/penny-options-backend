@@ -2,7 +2,8 @@
    GLOBAL CONFIG
 =========================== */
 
-const API_BASE = "http://localhost:5000"; 
+http://localhost:8000/api/v1/candidates
+ 
 const SCANNER_INTERVAL_MS = 15000;
 
 // Debug
