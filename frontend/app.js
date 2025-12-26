@@ -92,6 +92,54 @@ document.addEventListener("DOMContentLoaded", () => {
   const showCalls = document.getElementById("showCalls");
   const showPuts = document.getElementById("showPuts");
 
+   const scannerToggle = document.getElementById("scannerToggle");
+const scannerStatus = document.getElementById("scannerStatus");
+const scannerLog = document.getElementById("scannerLog");
+
+scannerToggle.onclick = () => {
+  if (scannerRunning) {
+    stopScanner();
+  } else {
+    startScanner();
+  }
+};
+
+function startScanner() {
+  scannerRunning = true;
+  scannerStatus.textContent = "Running";
+  scannerToggle.textContent = "⏸ Stop Scanner";
+
+  runScanner();
+  scannerTimer = setInterval(runScanner, SCANNER_INTERVAL_MS);
+}
+
+function stopScanner() {
+  scannerRunning = false;
+  scannerStatus.textContent = "Stopped";
+  scannerToggle.textContent = "▶ Start Scanner";
+
+  if (scannerTimer) clearInterval(scannerTimer);
+}
+
+async function runScanner() {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/candidates`);
+    const data = await res.json();
+
+    const timestamp = new Date().toLocaleTimeString();
+
+    scannerLog.innerHTML =
+      `<div>[${timestamp}] Found ${data.candidates?.length || 0} candidates</div>` +
+      scannerLog.innerHTML;
+
+  } catch (err) {
+    scannerLog.innerHTML =
+      `<div style="color:red">Scanner error</div>` +
+      scannerLog.innerHTML;
+  }
+}
+
+
   /* =======================
      RENDER CANDIDATES
   ======================= */
