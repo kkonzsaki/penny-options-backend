@@ -1,244 +1,158 @@
-console.log("Frontend loaded");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Penny Options Scout</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-/* ===========================
-   GLOBAL STATE
-=========================== */
-let candidatesCache = [];
-let previousPrices = {};
-let optionsCache = [];
-let currentFilter = "all";
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-let alerts = JSON.parse(localStorage.getItem("alerts") || "[]");
-
-/* ===========================
-   SCANNER STATE
-=========================== */
-let scannerRunning = false;
-let scannerInterval = null;
-
-/* ===========================
-   THEME
-=========================== */
-const themeToggle = document.getElementById("themeToggle");
-const savedTheme = localStorage.getItem("theme") || "dark";
-
-if (savedTheme === "light") {
-  document.body.classList.add("light");
-  themeToggle.textContent = "☀️ Light";
-}
-
-themeToggle.onclick = () => {
-  document.body.classList.toggle("light");
-  const isLight = document.body.classList.contains("light");
-  localStorage.setItem("theme", isLight ? "light" : "dark");
-  themeToggle.textContent = isLight ? "☀️ Light" : "🌙 Dark";
-};
-
-/* ===========================
-   ALERT STORAGE
-=========================== */
-function saveAlerts() {
-  localStorage.setItem("alerts", JSON.stringify(alerts));
-}
-
-/* ===========================
-   ALERT RENDER
-=========================== */
-function renderAlerts() {
-  const out = document.getElementById("alertsOutput");
-  if (!alerts.length) {
-    out.innerHTML = "No alerts set";
-    return;
-  }
-
-  let html = `<table>
-    <tr><th>Symbol</th><th>Condition</th><th></th></tr>`;
-
-  alerts.forEach((a, i) => {
-    html += `
-      <tr>
-        <td>${a.symbol}</td>
-        <td>${a.type} ${a.value}</td>
-        <td><button data-i="${i}" class="delAlert">✖</button></td>
-      </tr>`;
-  });
-
-  html += "</table>";
-  out.innerHTML = html;
-
-  document.querySelectorAll(".delAlert").forEach(btn => {
-    btn.onclick = () => {
-      alerts.splice(btn.dataset.i, 1);
-      saveAlerts();
-      renderAlerts();
-    };
-  });
-}
-
-/* ===========================
-   SCANNER LOG
-=========================== */
-function logScanner(msg) {
-  const log = document.getElementById("scannerLog");
-  const time = new Date().toLocaleTimeString();
-  log.innerHTML = `<div>[${time}] ${msg}</div>` + log.innerHTML;
-}
-
-/* ===========================
-   SCANNER RULES
-=========================== */
-function runScanner(newCandidates) {
-  newCandidates.forEach(c => {
-    const prev = previousPrices[c.symbol];
-    if (!prev) return;
-
-    const pct = ((c.price - prev) / prev) * 100;
-
-    if (pct >= 5) {
-      alert(`🚀 ${c.symbol} UP ${pct.toFixed(2)}%`);
-      logScanner(`🚀 ${c.symbol} UP ${pct.toFixed(2)}%`);
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #020617;
+      --text: #e5e7eb;
+      --border: #334155;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --link: #38bdf8;
+      --row-hover: #1e293b;
+      --call: #22c55e;
+      --put: #ef4444;
     }
 
-    if (pct <= -5) {
-      alert(`📉 ${c.symbol} DOWN ${pct.toFixed(2)}%`);
-      logScanner(`📉 ${c.symbol} DOWN ${pct.toFixed(2)}%`);
+    body.light {
+      --bg: #f8fafc;
+      --panel: #ffffff;
+      --text: #020617;
+      --border: #cbd5e1;
+      --link: #2563eb;
+      --row-hover: #e2e8f0;
     }
 
-    if (c.price <= 1) {
-      logScanner(`💸 ${c.symbol} under $1 (${c.price})`);
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, sans-serif;
+      padding: 20px;
     }
 
-    if (Math.abs(pct) >= 8) {
-      logScanner(`⚡ ${c.symbol} VOLATILE ${pct.toFixed(2)}%`);
-    }
-  });
-}
-
-/* ===========================
-   MAIN
-=========================== */
-document.addEventListener("DOMContentLoaded", () => {
-  const candidatesBtn = document.getElementById("candidatesBtn");
-  const candidatesOutput = document.getElementById("candidatesOutput");
-  const optionsOutput = document.getElementById("optionsOutput");
-
-  const minPrice = document.getElementById("minPrice");
-  const maxPrice = document.getElementById("maxPrice");
-  const applyFilter = document.getElementById("applyFilter");
-
-  const showAll = document.getElementById("showAll");
-  const showCalls = document.getElementById("showCalls");
-  const showPuts = document.getElementById("showPuts");
-
-  const scannerToggle = document.getElementById("scannerToggle");
-  const scannerStatus = document.getElementById("scannerStatus");
-
-  function renderCandidates(data) {
-    let html = `<table><tr><th>Symbol</th><th>Price</th></tr>`;
-    data.forEach(c => {
-      html += `
-        <tr>
-          <td>
-            <a href="#" class="symbol-link" data-symbol="${c.symbol}">
-              ${c.symbol}
-            </a>
-          </td>
-          <td>${c.price}</td>
-        </tr>`;
-    });
-    html += "</table>";
-    candidatesOutput.innerHTML = html;
-
-    document.querySelectorAll(".symbol-link").forEach(link => {
-      link.onclick = e => {
-        e.preventDefault();
-        loadOptions(link.dataset.symbol);
-      };
-    });
-  }
-
-  async function loadOptions(symbol) {
-    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
-    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-    const data = await res.json();
-    optionsCache = data.options || [];
-    renderOptions();
-  }
-
-  function renderOptions() {
-    let filtered = currentFilter === "all"
-      ? optionsCache
-      : optionsCache.filter(o => o.type === currentFilter);
-
-    if (!filtered.length) {
-      optionsOutput.innerHTML = "No options";
-      return;
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
-    let html = `<table>
-      <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th></tr>`;
-
-    filtered.slice(0, 20).forEach(o => {
-      html += `
-        <tr class="${o.type}">
-          <td>${o.type.toUpperCase()}</td>
-          <td>${o.strike}</td>
-          <td>${o.expiration}</td>
-          <td>${o.ask}</td>
-        </tr>`;
-    });
-
-    html += "</table>";
-    optionsOutput.innerHTML = html;
-  }
-
-  showAll.onclick = () => { currentFilter = "all"; renderOptions(); };
-  showCalls.onclick = () => { currentFilter = "call"; renderOptions(); };
-  showPuts.onclick = () => { currentFilter = "put"; renderOptions(); };
-
-  candidatesBtn.onclick = async () => {
-    const res = await fetch(`${API_BASE}/api/v1/candidates`);
-    const data = await res.json();
-
-    const newData = data.candidates || [];
-
-    runScanner(newData);
-
-    previousPrices = Object.fromEntries(
-      newData.map(c => [c.symbol, c.price])
-    );
-
-    candidatesCache = newData;
-    renderCandidates(candidatesCache);
-  };
-
-  applyFilter.onclick = () => {
-    const min = Number(minPrice.value) || 0;
-    const max = Number(maxPrice.value) || Infinity;
-    renderCandidates(
-      candidatesCache.filter(c => c.price >= min && c.price <= max)
-    );
-  };
-
-  scannerToggle.onclick = () => {
-    scannerRunning = !scannerRunning;
-
-    if (scannerRunning) {
-      scannerStatus.textContent = "Running (60s)";
-      scannerToggle.textContent = "⏸ Stop Scanner";
-
-      scannerInterval = setInterval(() => {
-        candidatesBtn.click();
-      }, 60000);
-
-      logScanner("Scanner started");
-    } else {
-      clearInterval(scannerInterval);
-      scannerStatus.textContent = "Stopped";
-      scannerToggle.textContent = "▶ Start Scanner";
-      logScanner("Scanner stopped");
+    button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      margin-right: 6px;
     }
-  };
 
-  renderAlerts();
-});
+    button:hover { background: var(--accent-hover); }
+
+    input, select {
+      padding: 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      background: var(--panel);
+    }
+
+    th, td {
+      padding: 8px;
+      border: 1px solid var(--border);
+      text-align: center;
+      font-size: 14px;
+    }
+
+    tr:hover { background: var(--row-hover); }
+
+    a.symbol-link {
+      color: var(--link);
+      font-weight: bold;
+      text-decoration: none;
+    }
+
+    .call { color: var(--call); font-weight: bold; }
+    .put { color: var(--put); font-weight: bold; }
+
+    #candidatesOutput, #optionsOutput {
+      max-height: 400px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+
+    .panel {
+      background: var(--panel);
+      padding: 10px;
+      border-radius: 6px;
+      margin-top: 15px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="top-bar">
+    <h1>Penny Options Scout</h1>
+    <button id="themeToggle">🌙 Dark</button>
+  </div>
+
+  <h2>Options Chain</h2>
+
+  <div>
+    <button id="showAll">All</button>
+    <button id="showCalls">Calls</button>
+    <button id="showPuts">Puts</button>
+  </div>
+
+  <div id="optionsOutput">Click a symbol below</div>
+  <canvas id="payoffChart" height="120"></canvas>
+
+  <section>
+    <h2>Penny Option Candidates</h2>
+    <button id="candidatesBtn">Load Candidates</button>
+
+    <div style="margin-top:10px;">
+      <label>Min Price <input id="minPrice" type="number" step="0.01"></label>
+      <label>Max Price <input id="maxPrice" type="number" step="0.01"></label>
+      <button id="applyFilter">Apply Filter</button>
+    </div>
+
+    <div id="candidatesOutput"></div>
+  </section>
+
+  <!-- ALERTS -->
+  <section class="panel">
+    <h2>🔔 Alerts</h2>
+
+    <div>
+      <input id="alertSymbol" placeholder="Symbol (ex: SINT)" />
+      <select id="alertType">
+        <option value="above">Price Above</option>
+        <option value="below">Price Below</option>
+        <option value="percent_up">% Up</option>
+        <option value="percent_down">% Down</option>
+      </select>
+      <input id="alertValue" type="number" step="0.01" placeholder="Value" />
+      <button id="addAlert">Add Alert</button>
+    </div>
+
+    <div id="alertsOutput"></div>
+  </section>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
