@@ -5,6 +5,8 @@
   <title>Penny Options Scout</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     :root {
       --bg: #0f172a;
@@ -15,7 +17,6 @@
       --accent-hover: #1d4ed8;
       --link: #38bdf8;
       --row-hover: #1e293b;
-
       --call: #22c55e;
       --put: #ef4444;
     }
@@ -88,15 +89,8 @@
       text-decoration: none;
     }
 
-    .call {
-      color: var(--call);
-      font-weight: bold;
-    }
-
-    .put {
-      color: var(--put);
-      font-weight: bold;
-    }
+    .call { color: var(--call); font-weight: bold; }
+    .put { color: var(--put); font-weight: bold; }
 
     #candidatesOutput,
     #optionsOutput {
@@ -105,15 +99,10 @@
       margin-top: 10px;
     }
 
-    .filter-bar {
-      margin-top: 10px;
-    }
-
-    .panel {
+    canvas {
+      margin-top: 20px;
       background: var(--panel);
-      border: 1px solid var(--border);
       padding: 10px;
-      margin-top: 15px;
       border-radius: 6px;
     }
   </style>
@@ -125,48 +114,26 @@
     <button id="themeToggle">🌙 Dark</button>
   </div>
 
-  <!-- OPTIONS CHAIN -->
-  <section class="panel">
-    <h2>Options Chain</h2>
+  <h2>Options Chain</h2>
 
-    <div class="filter-bar">
-      <button id="showAll">All</button>
-      <button id="showCalls">Calls</button>
-      <button id="showPuts">Puts</button>
-    </div>
+  <div>
+    <button id="showAll">All</button>
+    <button id="showCalls">Calls</button>
+    <button id="showPuts">Puts</button>
+  </div>
 
-    <div id="optionsOutput">Click a symbol below</div>
-  </section>
+  <div id="optionsOutput">Click a symbol below</div>
 
-  <!-- TRADE BUILDER -->
-  <section class="panel">
-    <div id="tradeBuilder">
-      <em>Select an option to build a trade</em>
-    </div>
-  </section>
+  <!-- PAYOFF CHART -->
+  <canvas id="payoffChart" height="120"></canvas>
 
-  <!-- SAVED TRADES -->
-  <section class="panel">
-    <h2>Saved Trades</h2>
-    <div id="savedTradesOutput"></div>
-  </section>
-
-  <!-- CANDIDATES -->
-  <section class="panel">
+  <section>
     <h2>Penny Option Candidates</h2>
     <button id="candidatesBtn">Load Candidates</button>
 
     <div style="margin-top:10px;">
-      <label>
-        Min Price:
-        <input type="number" id="minPrice" step="0.01" />
-      </label>
-
-      <label>
-        Max Price:
-        <input type="number" id="maxPrice" step="0.01" />
-      </label>
-
+      <label>Min Price <input id="minPrice" type="number" step="0.01"></label>
+      <label>Max Price <input id="maxPrice" type="number" step="0.01"></label>
       <button id="applyFilter">Apply Filter</button>
     </div>
 
