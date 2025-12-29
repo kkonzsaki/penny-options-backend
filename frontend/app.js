@@ -177,27 +177,31 @@ function renderOptions() {
      SCANNER
   =========================== */
   scannerToggle.onclick = () => {
-    scannerRunning ? stopScanner() : startScanner();
-  };
+  scannerRunning = !scannerRunning;
 
-  function startScanner() {
-    scannerRunning = true;
-    scannerStatus.textContent = "Running";
+  if (scannerRunning) {
+    scannerStatus.textContent = "Running (60s)";
     scannerToggle.textContent = "⏸ Stop Scanner";
 
-    logScanner("Scanner started");
-    runScanner();
-    scannerTimer = setInterval(runScanner, SCANNER_INTERVAL_MS);
-  }
+    scannerInterval = setInterval(async () => {
+      try {
+        candidatesBtn.click();
+      } catch (err) {
+        console.error("Scanner fetch failed", err);
+        logScanner("⚠ Scanner fetch failed");
+      }
+    }, 60000);
 
-  function stopScanner() {
-    scannerRunning = false;
+    logScanner("Scanner started");
+  } else {
+    clearInterval(scannerInterval);
+    scannerInterval = null;
     scannerStatus.textContent = "Stopped";
     scannerToggle.textContent = "▶ Start Scanner";
-
-    clearInterval(scannerTimer);
     logScanner("Scanner stopped");
   }
+};
+
 
   async function runScanner() {
     try {
