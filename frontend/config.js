@@ -1,11 +1,5 @@
-/* ===========================
-   GLOBAL CONFIG
-=========================== */
+// config.js
+const API_BASE = "https://penny-options-backend.onrender.com";
 
-const API_BASE = "http://localhost:8000";
-
- 
-const SCANNER_INTERVAL_MS = 15000;
-
-// Debug
-console.log("API_BASE =", API_BASE);
+// Optional: API health check
+console.log("API_BASE set to:", API_BASE);
