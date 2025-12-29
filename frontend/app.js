@@ -48,28 +48,41 @@ document.addEventListener("DOMContentLoaded", () => {
   /* ===========================
      CANDIDATES
   =========================== */
-  async function loadCandidates() {
-    candidatesOutput.innerHTML = "Loading candidates...";
+candidatesBtn.onclick = async () => {
+  candidatesOutput.innerHTML = "Loading candidates...";
 
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/candidates`);
-      if (!res.ok) throw new Error("Candidates request failed");
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/candidates`);
 
-      const data = await res.json();
-      candidatesCache = data.candidates || [];
-
-      if (!candidatesCache.length) {
-        candidatesOutput.innerHTML = "No candidates found";
-        return;
-      }
-
-      renderCandidates(candidatesCache);
-    } catch (err) {
-      console.error(err);
-      candidatesOutput.innerHTML =
-        `<span style="color:red">Failed to load candidates</span>`;
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
     }
+
+    const data = await res.json();
+
+    const newData = data.candidates || [];
+
+    if (!newData.length) {
+      candidatesOutput.innerHTML = "No candidates returned";
+      return;
+    }
+
+    runScanner(newData);
+
+    previousPrices = Object.fromEntries(
+      newData.map(c => [c.symbol, c.price])
+    );
+
+    candidatesCache = newData;
+    renderCandidates(candidatesCache);
+
+  } catch (err) {
+    console.error("Failed to load candidates:", err);
+    candidatesOutput.innerHTML =
+      "❌ Failed to load candidates. Check Render backend.";
   }
+};
+
 
   function renderCandidates(list) {
     let html = `<table>
@@ -121,33 +134,40 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function renderOptions() {
-    let filtered =
-      currentFilter === "all"
-        ? optionsCache
-        : optionsCache.filter(o => o.type === currentFilter);
+function renderOptions() {
+  let filtered = optionsCache.filter(o => o && o.type);
 
-    if (!filtered.length) {
-      optionsOutput.innerHTML = "No options available";
-      return;
-    }
-
-    let html = `<table>
-      <tr><th>Type</th><th>Strike</th><th>Expiration</th><th>Ask</th></tr>`;
-
-    filtered.slice(0, 20).forEach(o => {
-      html += `
-        <tr class="${o.type}">
-          <td>${(o.type || "").toUpperCase()}</td>
-          <td>${o.strike}</td>
-          <td>${o.expiration}</td>
-          <td>${o.ask}</td>
-        </tr>`;
-    });
-
-    html += "</table>";
-    optionsOutput.innerHTML = html;
+  if (currentFilter !== "all") {
+    filtered = filtered.filter(o => o.type === currentFilter);
   }
+
+  if (!filtered.length) {
+    optionsOutput.innerHTML = "No options available";
+    return;
+  }
+
+  let html = `<table>
+    <tr>
+      <th>Type</th>
+      <th>Strike</th>
+      <th>Expiration</th>
+      <th>Ask</th>
+    </tr>`;
+
+  filtered.slice(0, 25).forEach(o => {
+    html += `
+      <tr class="${o.type}">
+        <td>${o.type.toUpperCase()}</td>
+        <td>${o.strike ?? "-"}</td>
+        <td>${o.expiration ?? "-"}</td>
+        <td>${o.ask ?? "-"}</td>
+      </tr>`;
+  });
+
+  html += "</table>";
+  optionsOutput.innerHTML = html;
+}
+
 
   showAll.onclick = () => { currentFilter = "all"; renderOptions(); };
   showCalls.onclick = () => { currentFilter = "call"; renderOptions(); };
