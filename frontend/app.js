@@ -4,17 +4,23 @@ console.log("Frontend loaded");
    GLOBAL STATE
 =========================== */
 let candidatesCache = [];
+let previousPrices = {};
 let optionsCache = [];
 let currentFilter = "all";
+let payoffChart = null;
 
+let alerts = JSON.parse(localStorage.getItem("alerts") || "[]");
+
+/* ===========================
+   SCANNER STATE
+=========================== */
 let scannerRunning = false;
-let scannerTimer = null;
+let scannerInterval = null;
 
 /* ===========================
    THEME
 =========================== */
 document.addEventListener("DOMContentLoaded", () => {
-
   const themeToggle = document.getElementById("themeToggle");
   const savedTheme = localStorage.getItem("theme") || "dark";
 
@@ -29,13 +35,117 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem("theme", isLight ? "light" : "dark");
     themeToggle.textContent = isLight ? "☀️ Light" : "🌙 Dark";
   };
+});
 
-  /* ===========================
-     ELEMENTS
-  =========================== */
+/* ===========================
+   ALERT STORAGE
+=========================== */
+function saveAlerts() {
+  localStorage.setItem("alerts", JSON.stringify(alerts));
+}
+
+function renderAlerts() {
+  const out = document.getElementById("alertsOutput");
+  if (!alerts.length) {
+    out.innerHTML = "No alerts set";
+    return;
+  }
+
+  let html = `<table>
+    <tr><th>Symbol</th><th>Condition</th><th></th></tr>`;
+
+  alerts.forEach((a, i) => {
+    html += `
+      <tr>
+        <td>${a.symbol}</td>
+        <td>${a.type} ${a.value}</td>
+        <td><button data-i="${i}" class="delAlert">✖</button></td>
+      </tr>`;
+  });
+
+  html += "</table>";
+  out.innerHTML = html;
+
+  document.querySelectorAll(".delAlert").forEach(btn => {
+    btn.onclick = () => {
+      alerts.splice(btn.dataset.i, 1);
+      saveAlerts();
+      renderAlerts();
+    };
+  });
+}
+
+/* ===========================
+   SCANNER LOG
+=========================== */
+function logScanner(msg) {
+  const log = document.getElementById("scannerLog");
+  const time = new Date().toLocaleTimeString();
+  log.innerHTML = `<div>[${time}] ${msg}</div>` + log.innerHTML;
+}
+
+/* ===========================
+   SCANNER RULES
+=========================== */
+function runScanner(newCandidates) {
+  newCandidates.forEach(c => {
+    const prev = previousPrices[c.symbol];
+    if (!prev) return;
+
+    const pct = ((c.price - prev) / prev) * 100;
+
+    if (pct >= 5) logScanner(`🚀 ${c.symbol} +${pct.toFixed(2)}%`);
+    if (pct <= -5) logScanner(`📉 ${c.symbol} ${pct.toFixed(2)}%`);
+    if (c.price <= 1) logScanner(`💸 ${c.symbol} under $1`);
+    if (Math.abs(pct) >= 8) logScanner(`⚡ ${c.symbol} volatile`);
+  });
+}
+
+/* ===========================
+   PAYOFF CHART
+=========================== */
+function renderPayoffChart(option) {
+  const ctx = document.getElementById("payoffChart").getContext("2d");
+
+  const prices = [];
+  const payoff = [];
+
+  for (let p = option.strike * 0.5; p <= option.strike * 1.5; p += 0.5) {
+    prices.push(p.toFixed(2));
+    payoff.push(
+      option.type === "call"
+        ? Math.max(0, p - option.strike) - option.ask
+        : Math.max(0, option.strike - p) - option.ask
+    );
+  }
+
+  if (payoffChart) payoffChart.destroy();
+
+  payoffChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: prices,
+      datasets: [{
+        label: "Payoff",
+        data: payoff,
+        borderWidth: 2,
+        fill: false
+      }]
+    }
+  });
+}
+
+/* ===========================
+   MAIN
+=========================== */
+document.addEventListener("DOMContentLoaded", () => {
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
   const optionsOutput = document.getElementById("optionsOutput");
+
+  const minPrice = document.getElementById("minPrice");
+  const maxPrice = document.getElementById("maxPrice");
+  const applyFilter = document.getElementById("applyFilter");
 
   const showAll = document.getElementById("showAll");
   const showCalls = document.getElementById("showCalls");
@@ -43,63 +153,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const scannerToggle = document.getElementById("scannerToggle");
   const scannerStatus = document.getElementById("scannerStatus");
-  const scannerLog = document.getElementById("scannerLog");
 
-  /* ===========================
-     CANDIDATES
-  =========================== */
-candidatesBtn.onclick = async () => {
-  candidatesOutput.innerHTML = "Loading candidates...";
-
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/candidates`);
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    const data = await res.json();
-
-    const newData = data.candidates || [];
-
-    if (!newData.length) {
-      candidatesOutput.innerHTML = "No candidates returned";
+  /* ---------- Candidates ---------- */
+  function renderCandidates(data) {
+    if (!data.length) {
+      candidatesOutput.innerHTML = "No candidates found";
       return;
     }
 
-    runScanner(newData);
-
-    previousPrices = Object.fromEntries(
-      newData.map(c => [c.symbol, c.price])
-    );
-
-    candidatesCache = newData;
-    renderCandidates(candidatesCache);
-
-  } catch (err) {
-    console.error("Failed to load candidates:", err);
-    candidatesOutput.innerHTML =
-      "❌ Failed to load candidates. Check Render backend.";
-  }
-};
-
-
-  function renderCandidates(list) {
-    let html = `<table>
-      <tr><th>Symbol</th><th>Price</th></tr>`;
-
-    list.forEach(c => {
+    let html = `<table><tr><th>Symbol</th><th>Price</th></tr>`;
+    data.forEach(c => {
       html += `
         <tr>
-          <td>
-            <a href="#" class="symbol-link" data-symbol="${c.symbol}">
-              ${c.symbol}
-            </a>
-          </td>
+          <td><a href="#" class="symbol-link" data-symbol="${c.symbol}">${c.symbol}</a></td>
           <td>${c.price}</td>
         </tr>`;
     });
-
     html += "</table>";
     candidatesOutput.innerHTML = html;
 
@@ -111,115 +180,102 @@ candidatesBtn.onclick = async () => {
     });
   }
 
-  candidatesBtn.onclick = loadCandidates;
-
-  /* ===========================
-     OPTIONS
-  =========================== */
-  async function loadOptions(symbol) {
-    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
-
+  candidatesBtn.onclick = async () => {
+    candidatesOutput.innerHTML = "Loading...";
     try {
-      const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-      if (!res.ok) throw new Error("Options request failed");
-
+      const res = await fetch(`${API_BASE}/api/v1/candidates`);
       const data = await res.json();
-      optionsCache = data.options || [];
 
-      renderOptions();
+      const newData = data.candidates || [];
+      runScanner(newData);
+
+      previousPrices = Object.fromEntries(
+        newData.map(c => [c.symbol, c.price])
+      );
+
+      candidatesCache = newData;
+      renderCandidates(newData);
     } catch (err) {
       console.error(err);
-      optionsOutput.innerHTML =
-        `<span style="color:red">Option chain not found</span>`;
+      candidatesOutput.innerHTML = "❌ Failed to load candidates";
+    }
+  };
+
+  applyFilter.onclick = () => {
+    const min = Number(minPrice.value) || 0;
+    const max = Number(maxPrice.value) || Infinity;
+    renderCandidates(
+      candidatesCache.filter(c => c.price >= min && c.price <= max)
+    );
+  };
+
+  /* ---------- Options ---------- */
+  async function loadOptions(symbol) {
+    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
+      const data = await res.json();
+      optionsCache = data.options || [];
+      currentFilter = "all";
+      renderOptions();
+    } catch {
+      optionsOutput.innerHTML = "❌ Options not available";
     }
   }
 
-function renderOptions() {
-  let filtered = optionsCache.filter(o => o && o.type);
+  function renderOptions() {
+    let filtered = currentFilter === "all"
+      ? optionsCache
+      : optionsCache.filter(o => o.type === currentFilter);
 
-  if (currentFilter !== "all") {
-    filtered = filtered.filter(o => o.type === currentFilter);
+    if (!filtered.length) {
+      optionsOutput.innerHTML = "No options found";
+      return;
+    }
+
+    let html = `<table>
+      <tr><th>Type</th><th>Strike</th><th>Exp</th><th>Ask</th></tr>`;
+
+    filtered.slice(0, 20).forEach(o => {
+      html += `
+        <tr class="${o.type}">
+          <td>${o.type.toUpperCase()}</td>
+          <td>${o.strike}</td>
+          <td>${o.expiration}</td>
+          <td>${o.ask}</td>
+        </tr>`;
+    });
+
+    html += "</table>";
+    optionsOutput.innerHTML = html;
+
+    renderPayoffChart(filtered[0]);
   }
-
-  if (!filtered.length) {
-    optionsOutput.innerHTML = "No options available";
-    return;
-  }
-
-  let html = `<table>
-    <tr>
-      <th>Type</th>
-      <th>Strike</th>
-      <th>Expiration</th>
-      <th>Ask</th>
-    </tr>`;
-
-  filtered.slice(0, 25).forEach(o => {
-    html += `
-      <tr class="${o.type}">
-        <td>${o.type.toUpperCase()}</td>
-        <td>${o.strike ?? "-"}</td>
-        <td>${o.expiration ?? "-"}</td>
-        <td>${o.ask ?? "-"}</td>
-      </tr>`;
-  });
-
-  html += "</table>";
-  optionsOutput.innerHTML = html;
-}
-
 
   showAll.onclick = () => { currentFilter = "all"; renderOptions(); };
   showCalls.onclick = () => { currentFilter = "call"; renderOptions(); };
   showPuts.onclick = () => { currentFilter = "put"; renderOptions(); };
 
-  /* ===========================
-     SCANNER
-  =========================== */
+  /* ---------- Scanner ---------- */
   scannerToggle.onclick = () => {
-  scannerRunning = !scannerRunning;
+    scannerRunning = !scannerRunning;
 
-  if (scannerRunning) {
-    scannerStatus.textContent = "Running (60s)";
-    scannerToggle.textContent = "⏸ Stop Scanner";
+    if (scannerRunning) {
+      scannerToggle.textContent = "⏸ Stop Scanner";
+      scannerStatus.textContent = "Running (60s)";
+      logScanner("Scanner started");
 
-    scannerInterval = setInterval(async () => {
-      try {
+      scannerInterval = setInterval(() => {
         candidatesBtn.click();
-      } catch (err) {
-        console.error("Scanner fetch failed", err);
-        logScanner("⚠ Scanner fetch failed");
-      }
-    }, 60000);
-
-    logScanner("Scanner started");
-  } else {
-    clearInterval(scannerInterval);
-    scannerInterval = null;
-    scannerStatus.textContent = "Stopped";
-    scannerToggle.textContent = "▶ Start Scanner";
-    logScanner("Scanner stopped");
-  }
-};
-
-
-  async function runScanner() {
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/candidates`);
-      if (!res.ok) throw new Error("Scanner fetch failed");
-
-      const data = await res.json();
-      logScanner(`Scan found ${data.candidates?.length || 0} symbols`);
-    } catch (err) {
-      console.error(err);
-      logScanner("Scanner error");
+      }, 60000);
+    } else {
+      clearInterval(scannerInterval);
+      scannerInterval = null;
+      scannerToggle.textContent = "▶ Start Scanner";
+      scannerStatus.textContent = "Stopped";
+      logScanner("Scanner stopped");
     }
-  }
+  };
 
-  function logScanner(msg) {
-    const time = new Date().toLocaleTimeString();
-    scannerLog.innerHTML =
-      `<div>[${time}] ${msg}</div>` + scannerLog.innerHTML;
-  }
-
+  renderAlerts();
 });
