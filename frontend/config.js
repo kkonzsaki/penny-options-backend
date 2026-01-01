@@ -1,5 +1,4 @@
 // config.js
-const API_BASE = "https://penny-options-backend.onrender.com";
+// Render-hosted backend ONLY (no localhost)
 
-// Optional: API health check
-console.log("API_BASE set to:", API_BASE);
+const API_BASE = "https://penny-options-backend.onrender.com";
