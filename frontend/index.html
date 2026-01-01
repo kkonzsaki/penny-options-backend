@@ -5,6 +5,7 @@
   <title>Penny Options Scout</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -88,17 +89,18 @@
     .call { color: var(--call); font-weight: bold; }
     .put { color: var(--put); font-weight: bold; }
 
-    #candidatesOutput, #optionsOutput {
-      max-height: 400px;
-      overflow-y: auto;
-      margin-top: 10px;
-    }
-
     .panel {
       background: var(--panel);
       padding: 10px;
       border-radius: 6px;
       margin-top: 15px;
+    }
+
+    #candidatesOutput,
+    #optionsOutput {
+      max-height: 400px;
+      overflow-y: auto;
+      margin-top: 10px;
     }
   </style>
 </head>
@@ -109,24 +111,25 @@
     <button id="themeToggle">🌙 Dark</button>
   </div>
 
-  <h2>Options Chain</h2>
-
-  <div>
+  <!-- OPTIONS -->
+  <section class="panel">
+    <h2>Options Chain</h2>
     <button id="showAll">All</button>
     <button id="showCalls">Calls</button>
     <button id="showPuts">Puts</button>
-  </div>
 
-  <div id="optionsOutput">Click a symbol below</div>
-  <canvas id="payoffChart" height="120"></canvas>
+    <div id="optionsOutput">Click a symbol below</div>
+    <canvas id="payoffChart" height="120"></canvas>
+  </section>
 
-  <section>
+  <!-- CANDIDATES -->
+  <section class="panel">
     <h2>Penny Option Candidates</h2>
     <button id="candidatesBtn">Load Candidates</button>
 
     <div style="margin-top:10px;">
-      <label>Min Price <input id="minPrice" type="number" step="0.01"></label>
-      <label>Max Price <input id="maxPrice" type="number" step="0.01"></label>
+      <label>Min <input id="minPrice" type="number" step="0.01"></label>
+      <label>Max <input id="maxPrice" type="number" step="0.01"></label>
       <button id="applyFilter">Apply Filter</button>
     </div>
 
@@ -137,29 +140,26 @@
   <section class="panel">
     <h2>🔔 Alerts</h2>
 
-    <div>
-      <input id="alertSymbol" placeholder="Symbol (ex: SINT)" />
-      <select id="alertType">
-        <option value="above">Price Above</option>
-        <option value="below">Price Below</option>
-        <option value="percent_up">% Up</option>
-        <option value="percent_down">% Down</option>
-      </select>
-      <input id="alertValue" type="number" step="0.01" placeholder="Value" />
-      <button id="addAlert">Add Alert</button>
-    </div>
+    <input id="alertSymbol" placeholder="Symbol" />
+    <select id="alertType">
+      <option value="above">Price Above</option>
+      <option value="below">Price Below</option>
+      <option value="percent_up">% Up</option>
+      <option value="percent_down">% Down</option>
+    </select>
+    <input id="alertValue" type="number" step="0.01" placeholder="Value" />
+    <button id="addAlert">Add Alert</button>
 
     <div id="alertsOutput"></div>
   </section>
 
+  <!-- SCANNER -->
   <section class="panel">
-  <h2>🧠 Auto Scanner</h2>
-
-  <button id="scannerToggle">▶ Start Scanner</button>
-  <span id="scannerStatus">Stopped</span>
-
-  <div id="scannerLog" style="margin-top:10px;"></div>
-</section>
+    <h2>🧠 Auto Scanner</h2>
+    <button id="scannerToggle">▶ Start Scanner</button>
+    <span id="scannerStatus">Stopped</span>
+    <div id="scannerLog"></div>
+  </section>
 
   <script src="config.js"></script>
   <script src="app.js"></script>
