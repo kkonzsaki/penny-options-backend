@@ -1,135 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Penny Options Scout</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
+<title>Penny Options Scout</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <style>
-    :root {
-      --bg:#0f172a;--panel:#020617;--text:#e5e7eb;--border:#334155;
-      --accent:#2563eb;--hover:#1d4ed8;--link:#38bdf8;--row:#1e293b;
-      --call:#22c55e;--put:#ef4444;
-    }
-
-    body.light {
-      --bg:#f8fafc;--panel:#ffffff;--text:#020617;
-      --border:#cbd5e1;--link:#2563eb;--row:#e2e8f0;
-    }
-
-    body {
-      background:var(--bg);
-      color:var(--text);
-      font-family:Arial,sans-serif;
-      padding:20px;
-    }
-
-    button {
-      background:var(--accent);
-      color:#fff;
-      border:none;
-      padding:6px 12px;
-      border-radius:4px;
-      cursor:pointer;
-      margin-right:6px;
-    }
-
-    button:hover { background:var(--hover); }
-
-    input,select {
-      background:var(--panel);
-      color:var(--text);
-      border:1px solid var(--border);
-      padding:6px;
-      border-radius:4px;
-    }
-
-    table {
-      width:100%;
-      border-collapse:collapse;
-      background:var(--panel);
-      margin-top:10px;
-    }
-
-    th,td {
-      padding:8px;
-      border:1px solid var(--border);
-      text-align:center;
-    }
-
-    tr:hover { background:var(--row); }
-
-    a.symbol-link { color:var(--link); font-weight:bold; text-decoration:none; }
-
-    .call { color:var(--call); font-weight:bold; }
-    .put { color:var(--put); font-weight:bold; }
-
-    .panel {
-      background:var(--panel);
-      padding:12px;
-      border-radius:6px;
-      margin-top:15px;
-    }
-
-    #candidatesOutput,#optionsOutput {
-      max-height:400px;
-      overflow-y:auto;
-      margin-top:10px;
-    }
-  </style>
+<style>
+:root{
+--bg:#0f172a;--panel:#020617;--text:#e5e7eb;
+--border:#334155;--accent:#2563eb;
+--call:#22c55e;--put:#ef4444;
+}
+body.light{
+--bg:#f8fafc;--panel:#fff;--text:#020617;--border:#cbd5e1;
+}
+body{
+background:var(--bg);color:var(--text);
+font-family:Arial;padding:20px;
+}
+button,input,select{
+background:var(--panel);color:var(--text);
+border:1px solid var(--border);
+padding:6px;border-radius:4px;
+}
+button{background:var(--accent);cursor:pointer}
+.panel{
+background:var(--panel);
+padding:12px;border-radius:6px;
+margin-bottom:16px;
+}
+.call{color:var(--call);font-weight:bold}
+.put{color:var(--put);font-weight:bold}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid var(--border);padding:6px;text-align:center}
+</style>
 </head>
 
 <body>
 
-<div style="display:flex;justify-content:space-between;align-items:center;">
-  <h1>Penny Options Scout</h1>
-  <button id="themeToggle">🌙 Dark</button>
+<div style="display:flex;justify-content:space-between">
+<h1>Penny Options Scout</h1>
+<button id="themeToggle">🌙</button>
 </div>
 
-<section class="panel">
-  <h2>Options Chain</h2>
-  <button id="showAll">All</button>
-  <button id="showCalls">Calls</button>
-  <button id="showPuts">Puts</button>
+<div class="panel">
+<h2>Candidates</h2>
+<button id="loadCandidates">Load Candidates</button>
+<input id="minPrice" placeholder="Min $" type="number">
+<input id="maxPrice" placeholder="Max $" type="number">
+<div id="candidates"></div>
+</div>
 
-  <div id="optionsOutput">Click a symbol below</div>
-  <canvas id="payoffChart" height="120"></canvas>
-</section>
+<div class="panel">
+<h2>Options</h2>
+<button onclick="filterType('all')">All</button>
+<button onclick="filterType('call')">Calls</button>
+<button onclick="filterType('put')">Puts</button>
+<div id="options"></div>
+<canvas id="payoffChart"></canvas>
+</div>
 
-<section class="panel">
-  <h2>Penny Option Candidates</h2>
-  <button id="candidatesBtn">Load Candidates</button>
+<div class="panel">
+<h2>Strategy Builder</h2>
+<select id="strategyType">
+<option value="call">Long Call</option>
+<option value="put">Long Put</option>
+<option value="spread">Bull Call Spread</option>
+</select>
+<button id="buildStrategy">Build</button>
+<div id="strategyOutput"></div>
+</div>
 
-  <div style="margin-top:8px;">
-    <input id="minPrice" placeholder="Min Price" type="number" step="0.01">
-    <input id="maxPrice" placeholder="Max Price" type="number" step="0.01">
-    <button id="applyFilter">Apply Filter</button>
-  </div>
-
-  <div id="candidatesOutput"></div>
-</section>
-
-<section class="panel">
-  <h2>🔔 Alerts</h2>
-  <input id="alertSymbol" placeholder="Symbol">
-  <select id="alertType">
-    <option value="above">Price Above</option>
-    <option value="below">Price Below</option>
-  </select>
-  <input id="alertValue" type="number" step="0.01" placeholder="Value">
-  <button id="addAlert">Add</button>
-  <div id="alertsOutput"></div>
-</section>
-
-<section class="panel">
-  <h2>🧠 Auto Scanner</h2>
-  <button id="scannerToggle">▶ Start Scanner</button>
-  <span id="scannerStatus">Stopped</span>
-  <div id="scannerLog"></div>
-</section>
+<div class="panel">
+<h2>Scanner</h2>
+<button id="scannerToggle">▶ Start</button>
+<span id="scannerStatus">Stopped</span>
+<div id="scannerLog"></div>
+</div>
 
 <script src="config.js"></script>
 <script src="app.js"></script>
