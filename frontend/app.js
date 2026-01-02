@@ -1,3 +1,4 @@
+alert("app.js loaded");
 console.log("Frontend booted");
 
 /* ===================== DOM ===================== */
