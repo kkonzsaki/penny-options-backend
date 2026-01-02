@@ -1,145 +1,203 @@
-alert("app.js loaded");
 console.log("Frontend booted");
 
-/* ===================== DOM ===================== */
-const loadBtn = document.getElementById("candidatesBtn");
-const candidatesOut = document.getElementById("candidatesOutput");
-const optionsOut = document.getElementById("optionsOutput");
-const scannerBtn = document.getElementById("scannerToggle");
-const scannerStatus = document.getElementById("scannerStatus");
-const scannerLog = document.getElementById("scannerLog");
-const minPrice = document.getElementById("minPrice");
-const maxPrice = document.getElementById("maxPrice");
+/* ===========================
+   GLOBAL STATE
+=========================== */
+let candidatesCache = [];
+let previousPrices = {};
+let optionsCache = [];
+let currentFilter = "all";
 
-let candidates = [];
-let options = [];
-let scannerInterval = null;
+/* ===========================
+   THEME TOGGLE
+=========================== */
+document.addEventListener("DOMContentLoaded", () => {
+  const themeToggle = document.getElementById("themeToggle");
+  const savedTheme = localStorage.getItem("theme") || "dark";
 
-/* ===================== THEME ===================== */
-const themeBtn = document.getElementById("themeToggle");
-if (localStorage.theme === "light") document.body.classList.add("light");
+  if (savedTheme === "light") {
+    document.body.classList.add("light");
+    themeToggle.textContent = "☀️ Light";
+  }
 
-themeBtn.onclick = () => {
-  document.body.classList.toggle("light");
-  localStorage.theme = document.body.classList.contains("light")
-    ? "light"
-    : "dark";
-};
+  themeToggle.onclick = () => {
+    document.body.classList.toggle("light");
+    const isLight = document.body.classList.contains("light");
+    localStorage.setItem("theme", isLight ? "light" : "dark");
+    themeToggle.textContent = isLight ? "☀️ Light" : "🌙 Dark";
+  };
+});
 
-/* ===================== LOAD CANDIDATES ===================== */
-loadBtn.onclick = async () => {
-  candidatesOut.textContent = "Loading candidates...";
+/* ===========================
+   MAIN
+=========================== */
+document.addEventListener("DOMContentLoaded", () => {
+  const candidatesBtn = document.getElementById("candidatesBtn");
+  const candidatesOutput = document.getElementById("candidatesOutput");
+  const optionsOutput = document.getElementById("optionsOutput");
 
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/candidates`);
+  const minPrice = document.getElementById("minPrice");
+  const maxPrice = document.getElementById("maxPrice");
+  const applyFilter = document.getElementById("applyFilter");
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const showAll = document.getElementById("showAll");
+  const showCalls = document.getElementById("showCalls");
+  const showPuts = document.getElementById("showPuts");
 
-    const data = await res.json();
-    candidates = data.candidates || [];
+  const scannerToggle = document.getElementById("scannerToggle");
+  const scannerStatus = document.getElementById("scannerStatus");
 
-    if (!candidates.length) {
-      candidatesOut.textContent = "No candidates returned.";
+  let scannerInterval = null;
+
+  /* ===========================
+     RENDER CANDIDATES
+  =========================== */
+  function renderCandidates(data) {
+    if (!data.length) {
+      candidatesOutput.innerHTML = "No candidates found";
       return;
     }
 
-    renderCandidates();
-  } catch (err) {
-    console.error("Candidates error:", err);
-    candidatesOut.textContent =
-      "❌ Failed to load candidates. Backend unreachable.";
-  }
-};
+    let html = `<table>
+      <tr><th>Symbol</th><th>Price</th></tr>`;
 
-function renderCandidates() {
-  const min = Number(minPrice.value) || 0;
-  const max = Number(maxPrice.value) || Infinity;
+    data.forEach(c => {
+      html += `
+        <tr>
+          <td>
+            <a href="#" class="symbol-link" data-symbol="${c.symbol}">
+              ${c.symbol}
+            </a>
+          </td>
+          <td>${c.price}</td>
+        </tr>`;
+    });
 
-  const filtered = candidates.filter(
-    c => c.price >= min && c.price <= max
-  );
+    html += "</table>";
+    candidatesOutput.innerHTML = html;
 
-  candidatesOut.innerHTML = filtered
-    .map(
-      c => `
-      <div>
-        <a href="#" onclick="loadOptions('${c.symbol}')">
-          ${c.symbol}
-        </a> — $${c.price}
-      </div>`
-    )
-    .join("");
-}
-
-/* ===================== LOAD OPTIONS ===================== */
-window.loadOptions = async symbol => {
-  optionsOut.textContent = "Loading options...";
-
-  try {
-    const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const data = await res.json();
-    options = data.options || [];
-
-    if (!options.length) {
-      optionsOut.textContent = "No options found.";
-      return;
-    }
-
-    renderOptions();
-  } catch (err) {
-    console.error("Options error:", err);
-    optionsOut.textContent = "❌ Options unavailable.";
-  }
-};
-
-function renderOptions() {
-  optionsOut.innerHTML = options
-    .slice(0, 20)
-    .map(
-      o => `
-      <div class="${o.type}">
-        ${o.type.toUpperCase()} | 
-        Strike ${o.strike} | 
-        Exp ${o.expiration} | 
-        Ask $${o.ask}
-      </div>`
-    )
-    .join("");
-}
-
-/* ===================== SCANNER (FIXED) ===================== */
-scannerBtn.onclick = () => {
-  if (scannerInterval) {
-    clearInterval(scannerInterval);
-    scannerInterval = null;
-    scannerStatus.textContent = "Stopped";
-    return;
+    document.querySelectorAll(".symbol-link").forEach(link => {
+      link.onclick = e => {
+        e.preventDefault();
+        loadOptions(link.dataset.symbol);
+      };
+    });
   }
 
-  scannerStatus.textContent = "Running";
+  /* ===========================
+     LOAD OPTIONS
+  =========================== */
+  async function loadOptions(symbol) {
+    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
 
-  scannerInterval = setInterval(async () => {
     try {
-      await loadBtn.click();
-      scannerLog.textContent =
-        "Scan OK @ " + new Date().toLocaleTimeString();
-    } catch {
-      scannerLog.textContent =
-        "Scanner paused (backend offline)";
+      const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
+      if (!res.ok) throw new Error("Options fetch failed");
+
+      const data = await res.json();
+      optionsCache = data.options || [];
+      currentFilter = "all";
+      renderOptions();
+    } catch (err) {
+      optionsOutput.innerHTML = "Failed to load options";
+      console.error(err);
+    }
+  }
+
+  /* ===========================
+     RENDER OPTIONS
+  =========================== */
+  function renderOptions() {
+    let filtered = optionsCache;
+
+    if (currentFilter !== "all") {
+      filtered = optionsCache.filter(o => o.option_type === currentFilter);
+    }
+
+    if (!filtered.length) {
+      optionsOutput.innerHTML = "No options found";
+      return;
+    }
+
+    let html = `<table>
+      <tr>
+        <th>Type</th>
+        <th>Strike</th>
+        <th>Expiration</th>
+        <th>Ask</th>
+      </tr>`;
+
+    filtered.slice(0, 20).forEach(o => {
+      html += `
+        <tr class="${o.option_type}">
+          <td class="${o.option_type}">
+            ${o.option_type.toUpperCase()}
+          </td>
+          <td>${o.strike}</td>
+          <td>${o.expiration}</td>
+          <td>${o.ask}</td>
+        </tr>`;
+    });
+
+    html += "</table>";
+    optionsOutput.innerHTML = html;
+  }
+
+  showAll.onclick = () => { currentFilter = "all"; renderOptions(); };
+  showCalls.onclick = () => { currentFilter = "call"; renderOptions(); };
+  showPuts.onclick = () => { currentFilter = "put"; renderOptions(); };
+
+  /* ===========================
+     LOAD CANDIDATES
+  =========================== */
+  candidatesBtn.onclick = async () => {
+    candidatesOutput.innerHTML = "Loading candidates...";
+
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/candidates`);
+      if (!res.ok) throw new Error("Candidates fetch failed");
+
+      const data = await res.json();
+      const newData = data.candidates || [];
+
+      previousPrices = Object.fromEntries(
+        newData.map(c => [c.symbol, c.price])
+      );
+
+      candidatesCache = newData;
+      renderCandidates(candidatesCache);
+    } catch (err) {
+      candidatesOutput.innerHTML = "Failed to load candidates";
+      console.error(err);
+    }
+  };
+
+  applyFilter.onclick = () => {
+    const min = Number(minPrice.value) || 0;
+    const max = Number(maxPrice.value) || Infinity;
+
+    renderCandidates(
+      candidatesCache.filter(c => c.price >= min && c.price <= max)
+    );
+  };
+
+  /* ===========================
+     SCANNER (SAFE)
+  =========================== */
+  scannerToggle.onclick = () => {
+    if (scannerInterval) {
       clearInterval(scannerInterval);
       scannerInterval = null;
       scannerStatus.textContent = "Stopped";
+      scannerToggle.textContent = "▶ Start Scanner";
+      return;
     }
-  }, 60000);
-};
 
-/* ===================== STRATEGY BUILDER ===================== */
-/*
-⚠️ Strategy builder NOT IMPLEMENTED YET
-Buttons should be disabled in HTML
-This prevents fake broken UI
-*/
-console.warn("Strategy Builder not wired yet");
+    scannerStatus.textContent = "Running (60s)";
+    scannerToggle.textContent = "⏸ Stop Scanner";
+
+    scannerInterval = setInterval(() => {
+      candidatesBtn.click();
+    }, 60000);
+  };
+});
