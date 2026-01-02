@@ -11,7 +11,9 @@ let currentFilter = "all";
 /* ===========================
    THEME TOGGLE
 =========================== */
-document.addEventListener("DOMContentLoaded", () => {
+window.onload = () => {
+  console.log("DOM fully loaded");
+
   const themeToggle = document.getElementById("themeToggle");
   const savedTheme = localStorage.getItem("theme") || "dark";
 
@@ -200,4 +202,4 @@ document.addEventListener("DOMContentLoaded", () => {
       candidatesBtn.click();
     }, 60000);
   };
-});
+};
