@@ -12,6 +12,10 @@ let currentFilter = "all";
    THEME TOGGLE
 =========================== */
 window.onload = () => {
+   console.log("candidatesBtn:", candidatesBtn);
+console.log("scannerToggle:", scannerToggle);
+console.log("themeToggle:", document.getElementById("themeToggle"));
+
   console.log("DOM fully loaded");
 
   const themeToggle = document.getElementById("themeToggle");
