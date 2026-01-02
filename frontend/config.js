@@ -1,4 +1,3 @@
-// config.js
-// Render backend only — NO localhost
-
+// ⚠️ MUST be your Render backend URL
+// Example:
 const API_BASE = "https://penny-options-backend.onrender.com";
