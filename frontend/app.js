@@ -160,14 +160,15 @@ document.addEventListener("DOMContentLoaded", () => {
       </tr>`;
 
     filtered.slice(0, 50).forEach(o => {
+      const optType = o.option_type || o.type || 'unknown';
       html += `
-        <tr class="${o.option_type}">
-          <td class="${o.option_type}">
-            ${o.option_type.toUpperCase()}
+        <tr class="${optType}">
+          <td class="${optType}">
+            ${optType.toUpperCase()}
           </td>
-          <td>$${o.strike}</td>
-          <td>${o.expiration}</td>
-          <td>$${o.ask}</td>
+          <td>${o.strike || 'N/A'}</td>
+          <td>${o.expiration || 'N/A'}</td>
+          <td>${o.ask || 'N/A'}</td>
         </tr>`;
     });
 
