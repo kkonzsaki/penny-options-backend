@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <title>Penny Options Scout</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <style>
 :root{
 --bg:#0f172a;--panel:#020617;--text:#e5e7eb;
@@ -37,20 +35,10 @@ table{width:100%;border-collapse:collapse}
 th,td{border:1px solid var(--border);padding:6px;text-align:center}
 </style>
 </head>
-
 <body>
-
 <div style="display:flex;justify-content:space-between">
 <h1>Penny Options Scout</h1>
 <button id="themeToggle">🌙</button>
-</div>
-
-<div class="panel">
-<h2>Candidates</h2>
-<button id="loadCandidates">Load Candidates</button>
-<input id="minPrice" placeholder="Min $" type="number">
-<input id="maxPrice" placeholder="Max $" type="number">
-<div id="candidates"></div>
 </div>
 
 <div class="panel">
@@ -61,6 +49,7 @@ th,td{border:1px solid var(--border);padding:6px;text-align:center}
 <button id="applyFilter">Apply Filter</button>
 <div id="candidatesOutput"></div>
 </div>
+
 <div class="panel">
 <h2>Options</h2>
 <button id="showAll">All</button>
