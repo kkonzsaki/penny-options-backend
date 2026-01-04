@@ -9,12 +9,8 @@ let optionsCache = [];
 let currentFilter = "all";
 
 /* ===========================
-   API BASE - Make sure config.js loaded first
+   API BASE - Using the one from config.js
 =========================== */
-const API_BASE = typeof window.API_BASE !== 'undefined' 
-  ? window.API_BASE 
-  : "https://penny-options-backend.onrender.com";
-
 console.log("Using API_BASE:", API_BASE);
 
 /* ===========================
