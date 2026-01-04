@@ -9,35 +9,45 @@ let optionsCache = [];
 let currentFilter = "all";
 
 /* ===========================
+   API BASE - Make sure config.js loaded first
+=========================== */
+const API_BASE = typeof window.API_BASE !== 'undefined' 
+  ? window.API_BASE 
+  : "https://penny-options-backend.onrender.com";
+
+console.log("Using API_BASE:", API_BASE);
+
+/* ===========================
    THEME TOGGLE
 =========================== */
-window.onload = () => {
-   console.log("candidatesBtn:", candidatesBtn);
-console.log("scannerToggle:", scannerToggle);
-console.log("themeToggle:", document.getElementById("themeToggle"));
-
-  console.log("DOM fully loaded");
-
+window.addEventListener('load', () => {
+  console.log("Window loaded, setting up theme");
+  
   const themeToggle = document.getElementById("themeToggle");
   const savedTheme = localStorage.getItem("theme") || "dark";
 
   if (savedTheme === "light") {
     document.body.classList.add("light");
     themeToggle.textContent = "☀️ Light";
+  } else {
+    themeToggle.textContent = "🌙 Dark";
   }
 
-  themeToggle.onclick = () => {
+  themeToggle.addEventListener('click', () => {
     document.body.classList.toggle("light");
     const isLight = document.body.classList.contains("light");
     localStorage.setItem("theme", isLight ? "light" : "dark");
     themeToggle.textContent = isLight ? "☀️ Light" : "🌙 Dark";
-  };
+  });
 });
 
 /* ===========================
    MAIN
 =========================== */
 document.addEventListener("DOMContentLoaded", () => {
+  console.log("DOM Content Loaded");
+  
+  // Get all elements using the ACTUAL IDs from your HTML
   const candidatesBtn = document.getElementById("candidatesBtn");
   const candidatesOutput = document.getElementById("candidatesOutput");
   const optionsOutput = document.getElementById("optionsOutput");
@@ -53,14 +63,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const scannerToggle = document.getElementById("scannerToggle");
   const scannerStatus = document.getElementById("scannerStatus");
 
+  // Debug - check if elements exist
+  console.log("candidatesBtn:", candidatesBtn);
+  console.log("scannerToggle:", scannerToggle);
+  console.log("showAll:", showAll);
+
   let scannerInterval = null;
 
   /* ===========================
      RENDER CANDIDATES
   =========================== */
   function renderCandidates(data) {
-    if (!data.length) {
-      candidatesOutput.innerHTML = "No candidates found";
+    console.log("Rendering candidates:", data);
+    
+    if (!data || !data.length) {
+      candidatesOutput.innerHTML = "<p>No candidates found</p>";
       return;
     }
 
@@ -75,18 +92,21 @@ document.addEventListener("DOMContentLoaded", () => {
               ${c.symbol}
             </a>
           </td>
-          <td>${c.price}</td>
+          <td>$${c.price.toFixed(2)}</td>
         </tr>`;
     });
 
     html += "</table>";
     candidatesOutput.innerHTML = html;
 
+    // Add click handlers to symbol links
     document.querySelectorAll(".symbol-link").forEach(link => {
-      link.onclick = e => {
+      link.addEventListener('click', (e) => {
         e.preventDefault();
-        loadOptions(link.dataset.symbol);
-      };
+        const symbol = link.dataset.symbol;
+        console.log("Loading options for:", symbol);
+        loadOptions(symbol);
+      });
     });
   }
 
@@ -94,19 +114,27 @@ document.addEventListener("DOMContentLoaded", () => {
      LOAD OPTIONS
   =========================== */
   async function loadOptions(symbol) {
-    optionsOutput.innerHTML = `Loading options for ${symbol}...`;
+    optionsOutput.innerHTML = `<p>Loading options for ${symbol}...</p>`;
 
     try {
-      const res = await fetch(`${API_BASE}/api/v1/options/${symbol}`);
-      if (!res.ok) throw new Error("Options fetch failed");
+      const url = `${API_BASE}/api/v1/options/${symbol}`;
+      console.log("Fetching options from:", url);
+      
+      const res = await fetch(url);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
 
       const data = await res.json();
+      console.log("Options data received:", data);
+      
       optionsCache = data.options || [];
       currentFilter = "all";
       renderOptions();
     } catch (err) {
-      optionsOutput.innerHTML = "Failed to load options";
-      console.error(err);
+      optionsOutput.innerHTML = `<p style="color: var(--put)">Failed to load options: ${err.message}</p>`;
+      console.error("Options fetch error:", err);
     }
   }
 
@@ -120,8 +148,10 @@ document.addEventListener("DOMContentLoaded", () => {
       filtered = optionsCache.filter(o => o.option_type === currentFilter);
     }
 
+    console.log("Rendering options, filter:", currentFilter, "count:", filtered.length);
+
     if (!filtered.length) {
-      optionsOutput.innerHTML = "No options found";
+      optionsOutput.innerHTML = "<p>No options found</p>";
       return;
     }
 
@@ -133,15 +163,15 @@ document.addEventListener("DOMContentLoaded", () => {
         <th>Ask</th>
       </tr>`;
 
-    filtered.slice(0, 20).forEach(o => {
+    filtered.slice(0, 50).forEach(o => {
       html += `
         <tr class="${o.option_type}">
           <td class="${o.option_type}">
             ${o.option_type.toUpperCase()}
           </td>
-          <td>${o.strike}</td>
+          <td>$${o.strike}</td>
           <td>${o.expiration}</td>
-          <td>${o.ask}</td>
+          <td>$${o.ask}</td>
         </tr>`;
     });
 
@@ -149,61 +179,123 @@ document.addEventListener("DOMContentLoaded", () => {
     optionsOutput.innerHTML = html;
   }
 
-  showAll.onclick = () => { currentFilter = "all"; renderOptions(); };
-  showCalls.onclick = () => { currentFilter = "call"; renderOptions(); };
-  showPuts.onclick = () => { currentFilter = "put"; renderOptions(); };
+  /* ===========================
+     FILTER BUTTONS
+  =========================== */
+  if (showAll) {
+    showAll.addEventListener('click', () => {
+      console.log("Show All clicked");
+      currentFilter = "all";
+      renderOptions();
+    });
+  }
+
+  if (showCalls) {
+    showCalls.addEventListener('click', () => {
+      console.log("Show Calls clicked");
+      currentFilter = "call";
+      renderOptions();
+    });
+  }
+
+  if (showPuts) {
+    showPuts.addEventListener('click', () => {
+      console.log("Show Puts clicked");
+      currentFilter = "put";
+      renderOptions();
+    });
+  }
 
   /* ===========================
      LOAD CANDIDATES
   =========================== */
-  candidatesBtn.onclick = async () => {
-    candidatesOutput.innerHTML = "Loading candidates...";
+  if (candidatesBtn) {
+    candidatesBtn.addEventListener('click', async () => {
+      console.log("Load Candidates clicked");
+      candidatesOutput.innerHTML = "<p>Loading candidates...</p>";
 
-    try {
-      const res = await fetch(`${API_BASE}/api/v1/candidates`);
-      if (!res.ok) throw new Error("Candidates fetch failed");
+      try {
+        const url = `${API_BASE}/api/v1/candidates`;
+        console.log("Fetching candidates from:", url);
+        
+        const res = await fetch(url);
+        
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
 
-      const data = await res.json();
-      const newData = data.candidates || [];
+        const data = await res.json();
+        console.log("Candidates data received:", data);
+        
+        const newData = data.candidates || [];
 
-      previousPrices = Object.fromEntries(
-        newData.map(c => [c.symbol, c.price])
-      );
+        previousPrices = Object.fromEntries(
+          newData.map(c => [c.symbol, c.price])
+        );
 
-      candidatesCache = newData;
-      renderCandidates(candidatesCache);
-    } catch (err) {
-      candidatesOutput.innerHTML = "Failed to load candidates";
-      console.error(err);
-    }
-  };
-
-  applyFilter.onclick = () => {
-    const min = Number(minPrice.value) || 0;
-    const max = Number(maxPrice.value) || Infinity;
-
-    renderCandidates(
-      candidatesCache.filter(c => c.price >= min && c.price <= max)
-    );
-  };
+        candidatesCache = newData;
+        renderCandidates(candidatesCache);
+      } catch (err) {
+        candidatesOutput.innerHTML = `<p style="color: var(--put)">Failed to load candidates: ${err.message}</p>`;
+        console.error("Candidates fetch error:", err);
+      }
+    });
+  } else {
+    console.error("candidatesBtn not found!");
+  }
 
   /* ===========================
-     SCANNER (SAFE)
+     APPLY PRICE FILTER
   =========================== */
-  scannerToggle.onclick = () => {
-    if (scannerInterval) {
-      clearInterval(scannerInterval);
-      scannerInterval = null;
-      scannerStatus.textContent = "Stopped";
-      scannerToggle.textContent = "▶ Start Scanner";
-      return;
-    }
+  if (applyFilter) {
+    applyFilter.addEventListener('click', () => {
+      console.log("Apply Filter clicked");
+      const min = Number(minPrice.value) || 0;
+      const max = Number(maxPrice.value) || Infinity;
 
-    scannerStatus.textContent = "Running (60s)";
-    scannerToggle.textContent = "⏸ Stop Scanner";
+      console.log("Filter range:", min, "to", max);
 
-    scannerInterval = setInterval(() => {
-      candidatesBtn.click();
-    }, 60000);
-  };
-};
+      const filtered = candidatesCache.filter(c => c.price >= min && c.price <= max);
+      renderCandidates(filtered);
+    });
+  }
+
+  /* ===========================
+     SCANNER
+  =========================== */
+  if (scannerToggle) {
+    scannerToggle.addEventListener('click', () => {
+      console.log("Scanner toggle clicked");
+      
+      if (scannerInterval) {
+        clearInterval(scannerInterval);
+        scannerInterval = null;
+        scannerStatus.textContent = "Stopped";
+        scannerToggle.textContent = "▶ Start";
+        console.log("Scanner stopped");
+        return;
+      }
+
+      scannerStatus.textContent = "Running (60s)";
+      scannerToggle.textContent = "⏸ Stop";
+      console.log("Scanner started");
+
+      // Run immediately
+      if (candidatesBtn) {
+        candidatesBtn.click();
+      }
+
+      // Then run every 60 seconds
+      scannerInterval = setInterval(() => {
+        console.log("Scanner auto-refresh");
+        if (candidatesBtn) {
+          candidatesBtn.click();
+        }
+      }, 60000);
+    });
+  } else {
+    console.error("scannerToggle not found!");
+  }
+
+  console.log("All event listeners attached");
+});
