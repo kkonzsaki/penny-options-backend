@@ -54,11 +54,19 @@ th,td{border:1px solid var(--border);padding:6px;text-align:center}
 </div>
 
 <div class="panel">
+<h2>Candidates</h2>
+<button id="candidatesBtn">Load Candidates</button>
+<input id="minPrice" placeholder="Min $" type="number">
+<input id="maxPrice" placeholder="Max $" type="number">
+<button id="applyFilter">Apply Filter</button>
+<div id="candidatesOutput"></div>
+</div>
+<div class="panel">
 <h2>Options</h2>
-<button onclick="filterType('all')">All</button>
-<button onclick="filterType('call')">Calls</button>
-<button onclick="filterType('put')">Puts</button>
-<div id="options"></div>
+<button id="showAll">All</button>
+<button id="showCalls">Calls</button>
+<button id="showPuts">Puts</button>
+<div id="optionsOutput"></div>
 <canvas id="payoffChart"></canvas>
 </div>
 
